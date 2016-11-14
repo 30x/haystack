@@ -1,0 +1,14 @@
+hash: 5397c547e2b7d97586f7fc11ca284912298c01016113eeac959d79aded1897e6
+updated: 2016-11-14T11:16:18.954252315-08:00
+imports:
+- name: github.com/aws/aws-sdk-go
+  version: 5b341290c488aa6bd76b335d819b4a68516ec3ab
+- name: github.com/gorilla/mux
+  version: 757bef944d0f21880861c2dd9c871ca543023cba
+testImports:
+- name: github.com/onsi/ginkgo
+  version: 462326b1628e124b23f42e87a8f2750e3c4e2d24
+  subpackages:
+  - ginkgo
+- name: github.com/onsi/gomega
+  version: a78ae492d53aad5a7a232d0d0462c14c400e3ee7
