@@ -1,0 +1,81 @@
+swagger: "2.0"
+info:
+  version: "0.0.1"
+  title: Swagger API
+host: playground.apistudio.io
+basePath: /try/215594a5-e3fd-4e52-ae3b-4cb1c0fab779
+schemes:
+  - http
+  - https
+paths:
+  /bundles:
+    post:
+      description: Create a new bundle version from the zip file
+      consumes:
+        - multipart/form-data
+      produces:
+        - application/json
+      responses:
+        201:
+          description: Success
+          schema:
+            $ref: '#/definitions/BundleCreated'
+        404:
+          description: Bundle not found
+        401:
+          description: Not a valid JWT token
+        403:
+          description: You are not authorized to post this bundle
+        default:
+          description: Error
+          schema:
+            $ref:  "#/definitions/Errors"
+  /bundles/{bundleId}:
+    get:
+      description: Retrieve the bundle.  Expects a bearer token in the header
+      produces:
+        - application/octet-stream
+        - application/zip
+      parameters:
+      - name: bundleId
+        in: path
+        required: true
+        description: The id of the bundle
+        type: string
+      responses:
+        200:
+          description: Success
+        404:
+          description: Bundle not found
+        401:
+          description: Not a valid JWT token
+        403:
+          description: You are not authorized to get this bundle
+        default:
+          description: Error
+          schema:
+            $ref:  "#/definitions/Errors"
+definitions:
+  Resource:
+    type: object
+    required:
+      - self
+    properties:
+      self:
+        type: string
+        readOnly: true
+      kind:
+        type: string
+  BundleCreated:
+    allOf:
+    - $ref: '#/definitions/Resource'
+    properties:
+      id:
+        type: string
+        description: An id that represents a unique version of this bundle
+  Errors:
+    properties:
+       errors:
+        type: array
+        items:
+          type: string
