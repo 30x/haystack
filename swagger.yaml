@@ -31,19 +31,17 @@ paths:
           schema:
             $ref:  "#/definitions/Errors"
   /bundles/{bundleId}:
+    parameters:
+      - $ref: '#/parameters/bundleId'
     get:
       description: Retrieve the bundle.  Expects a bearer token in the header
       produces:
         - application/octet-stream
         - application/zip
-      parameters:
-      - name: bundleId
-        in: path
-        required: true
-        description: The id of the bundle
-        type: string
       responses:
         200:
+          schema:
+            type: file
           description: Success
         404:
           description: Bundle not found
@@ -55,6 +53,24 @@ paths:
           description: Error
           schema:
             $ref:  "#/definitions/Errors"
+    delete:
+      description: Delete the bundle.  Expects a bearer token in the header
+      responses:
+        200:
+          schema:
+            type: file
+          description: Success
+        404:
+          description: Bundle not found
+        401:
+          description: Not a valid JWT token
+        403:
+          description: You are not authorized to get this bundle
+        default:
+          description: Error
+          schema:
+            $ref:  "#/definitions/Errors"
+
 definitions:
   Resource:
     type: object
@@ -79,3 +95,10 @@ definitions:
         type: array
         items:
           type: string
+parameters:
+  bundleId:
+    name: bundleId
+    in: path
+    required: true
+    description: The id of the bundle
+    type: string
