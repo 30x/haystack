@@ -8,7 +8,9 @@ schemes:
   - http
   - https
 paths:
-  /bundles:
+  /bundles/{bundleName}:
+    parameters:
+      - $ref: '#/parameters/bundleName'
     post:
       description: Create a new bundle version from the zip file
       consumes:
@@ -30,11 +32,60 @@ paths:
           description: Error
           schema:
             $ref:  "#/definitions/Errors"
-  /bundles/{bundleId}:
+  /bundles/{bundleName}/urls:
     parameters:
-      - $ref: '#/parameters/bundleId'
+      - $ref: '#/parameters/bundleName'
     get:
-      description: Retrieve the bundle.  Expects a bearer token in the header
+      description: Get all sharable urls from the bundle.
+      consumes:
+        - application/json
+      produces:
+        - application/json
+      responses:
+        201:
+          description: Success
+          schema:
+            $ref: '#/definitions/BundleUrls'
+        404:
+          description: Bundle not found
+        401:
+          description: Not a valid JWT token
+        403:
+          description: You are not authorized to post this bundle
+        default:
+          description: Error
+          schema:
+            $ref:  "#/definitions/Errors"
+  /bundles/{bundleName}/revisions:
+    parameters:
+      - $ref: '#/parameters/bundleName'
+    get:
+      description: Get all revisions of he bundle.
+      consumes:
+        - application/json
+      produces:
+        - application/json
+      responses:
+        201:
+          description: Success
+          schema:
+            $ref: '#/definitions/BundleRevisions'
+        404:
+          description: Bundle not found
+        401:
+          description: Not a valid JWT token
+        403:
+          description: You are not authorized to post this bundle
+        default:
+          description: Error
+          schema:
+            $ref:  "#/definitions/Errors"
+  /bundles/{bundleName}/revisions/{bundleRevision}:
+    parameters:
+      - $ref: '#/parameters/bundleName'
+      - $ref: '#/parameters/bundleRevision'
+    get:
+      description: Retrieve the bundle.  Expects a bearer token in the header.
       produces:
         - application/octet-stream
         - application/zip
@@ -86,9 +137,37 @@ definitions:
     allOf:
     - $ref: '#/definitions/Resource'
     properties:
-      id:
+      revision:
         type: string
-        description: An id that represents a unique version of this bundle
+        description: A revision that represents a unique version of this bundle
+  BundleUrls:
+    allOf:
+    - $ref: '#/definitions/Resource'
+    properties:
+      revision:
+        type: array
+        items:
+          type: string
+        description: A list of all urls for this bundle
+  BundleRevisions:
+    allOf:
+    - $ref: '#/definitions/Resource'
+    properties:
+      revisions:
+        type: array
+        items:
+          $ref: '#/definitions/RevisionEntry'
+        description: A list of all urls for this bundle
+  RevisionEntry:
+    allOf:
+    - $ref: '#/definitions/Resource'
+    properties:
+      revision:
+        type: string
+        description: A list of all urls for this bundle
+      date:
+        type: string
+        description: A list of all urls for this bundle
   Errors:
     properties:
        errors:
@@ -96,9 +175,15 @@ definitions:
         items:
           type: string
 parameters:
-  bundleId:
-    name: bundleId
+  bundleName:
+    name: bundleName
     in: path
     required: true
-    description: The id of the bundle
+    description: The name
+    type: string
+  bundleRevision:
+    name: bundleRevision
+    in: path
+    required: true
+    description: The revision of the bundle
     type: string
