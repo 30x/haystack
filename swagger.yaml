@@ -8,9 +8,7 @@ schemes:
   - http
   - https
 paths:
-  /bundles/{bundleName}:
-    parameters:
-      - $ref: '#/parameters/bundleName'
+  /bundles:
     post:
       description: Create a new bundle version from the zip file
       consumes:
@@ -22,30 +20,6 @@ paths:
           description: Success
           schema:
             $ref: '#/definitions/BundleCreated'
-        404:
-          description: Bundle not found
-        401:
-          description: Not a valid JWT token
-        403:
-          description: You are not authorized to post this bundle
-        default:
-          description: Error
-          schema:
-            $ref:  "#/definitions/Errors"
-  /bundles/{bundleName}/urls:
-    parameters:
-      - $ref: '#/parameters/bundleName'
-    get:
-      description: Get all sharable urls from the bundle.
-      consumes:
-        - application/json
-      produces:
-        - application/json
-      responses:
-        201:
-          description: Success
-          schema:
-            $ref: '#/definitions/BundleUrls'
         404:
           description: Bundle not found
         401:
@@ -140,15 +114,6 @@ definitions:
       revision:
         type: string
         description: A revision that represents a unique version of this bundle
-  BundleUrls:
-    allOf:
-    - $ref: '#/definitions/Resource'
-    properties:
-      revision:
-        type: array
-        items:
-          type: string
-        description: A list of all urls for this bundle
   BundleRevisions:
     allOf:
     - $ref: '#/definitions/Resource'
