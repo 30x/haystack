@@ -1,5 +1,5 @@
 hash: 164cc23d313a20a4f27a9b176e8ccacc90b17ee25883cd5a27f236bc31f7cfca
-updated: 2016-11-18T12:27:58.435058324-07:00
+updated: 2016-11-21T15:05:04.410693297-07:00
 imports:
 - name: cloud.google.com/go
   version: 3b1ae45394a234c385be014e9a488f2bb6eef821
@@ -31,7 +31,7 @@ imports:
   - jws
   - jwt
 - name: google.golang.org/api
-  version: e4c04685e5d7db47ff294aa9e514b3a638c431c9
+  version: c8d75a8ec737f9b8b1ed2676c28feedbe21f543f
   subpackages:
   - gensupport
   - googleapi
@@ -57,7 +57,7 @@ imports:
   - socket
   - urlfetch
 - name: google.golang.org/grpc
-  version: b13ef794997191ec801db90a42c50034df91850a
+  version: 63bd55dfbf781b183216d2dd4433a659c947648a
   subpackages:
   - codes
   - credentials
