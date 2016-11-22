@@ -1,7 +1,9 @@
 package: github.com/30x/haystack
 import:
-- package: cloud.google.com/go
+- package: cloud.google.com/go/storage
+  version: v0.4.0
 - package: github.com/gorilla/mux
 testImport:
 - package: github.com/onsi/ginkgo/ginkgo
 - package: github.com/onsi/gomega
+- package: github.com/satori/go.uuid

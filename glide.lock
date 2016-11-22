@@ -1,16 +1,19 @@
-hash: 164cc23d313a20a4f27a9b176e8ccacc90b17ee25883cd5a27f236bc31f7cfca
-updated: 2016-11-21T15:05:04.410693297-07:00
+hash: 9c192731e41552c58e9fdc604db05a50c84f9d2ab20da8818a9ee417e2b664cf
+updated: 2016-11-22T15:58:46.600999998-07:00
 imports:
 - name: cloud.google.com/go
-  version: 3b1ae45394a234c385be014e9a488f2bb6eef821
+  version: 8c2dc6124f184bbfc2f13949476cb98e12bda2bb
   subpackages:
   - compute/metadata
   - internal
+  - internal/optional
   - storage
 - name: github.com/golang/protobuf
   version: 98fa357170587e470c5f27d3c3ea0947b71eb455
   subpackages:
   - proto
+- name: github.com/googleapis/gax-go
+  version: da06d194a00e19ce00d9011a13931c3f6f6887c7
 - name: github.com/gorilla/mux
   version: 757bef944d0f21880861c2dd9c871ca543023cba
 - name: golang.org/x/net
@@ -74,6 +77,33 @@ testImports:
 - name: github.com/onsi/ginkgo
   version: 462326b1628e124b23f42e87a8f2750e3c4e2d24
   subpackages:
+  - config
   - ginkgo
+  - internal/codelocation
+  - internal/containernode
+  - internal/failer
+  - internal/leafnodes
+  - internal/remote
+  - internal/spec
+  - internal/specrunner
+  - internal/suite
+  - internal/testingtproxy
+  - internal/writer
+  - reporters
+  - reporters/stenographer
+  - types
 - name: github.com/onsi/gomega
   version: a78ae492d53aad5a7a232d0d0462c14c400e3ee7
+  subpackages:
+  - format
+  - internal/assertion
+  - internal/asyncassertion
+  - internal/testingtsupport
+  - matchers
+  - matchers/support/goraph/bipartitegraph
+  - matchers/support/goraph/edge
+  - matchers/support/goraph/node
+  - matchers/support/goraph/util
+  - types
+- name: github.com/satori/go.uuid
+  version: b061729afc07e77a8aa4fad0a2fd840958f1942a
