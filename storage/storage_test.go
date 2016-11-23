@@ -2,8 +2,10 @@ package storage_test
 
 import (
 	"bytes"
+	"encoding/hex"
 	"fmt"
 	"io/ioutil"
+	"os"
 
 	"crypto/sha512"
 
@@ -23,18 +25,18 @@ var _ = Describe("storage", func() {
 		It("Invalid Bundle Id", func() {
 			data := [...]byte{1, 1, 1}
 			sha, err := storageImpl.SaveBundle(bytes.NewReader(data[:len(data)]), "")
-			Expect(sha).Should(BeNil())
+			Expect(sha).Should(BeEmpty())
 			Expect(err.Error()).Should(Equal("You must specify a bundle id"))
 		})
 
 		It("Empty reader", func() {
 			data := [...]byte{}
 			sha, err := storageImpl.SaveBundle(bytes.NewReader(data[:len(data)]), "")
-			Expect(sha).Should(BeNil())
+			Expect(sha).Should(BeEmpty())
 			Expect(err.Error()).Should(Equal("You must specify a bundle id"))
 		})
 
-		It("Valid Bundle Save + GET", func() {
+		FIt("Valid Bundle Save + GET", func() {
 
 			//1k
 			data := createFakeBinary(1024)
@@ -63,7 +65,7 @@ var _ = Describe("storage", func() {
 
 		})
 
-		It("Missing bundle Get", func() {
+		PIt("Missing bundle Get", func() {
 			bundleId := "bundlethatshouldntexist"
 			sha := "bad sha"
 
@@ -75,7 +77,7 @@ var _ = Describe("storage", func() {
 
 		})
 
-		It("Create and get tag", func() {
+		PIt("Create and get tag", func() {
 			//save a 1 k file and then create a tag for it
 
 			bundleId := uuid.NewV1().String()
@@ -128,7 +130,7 @@ var _ = Describe("storage", func() {
 			Expect(revision).Should(Equal(sha2))
 		})
 
-		It("Create tag missing revision", func() {
+		PIt("Create tag missing revision", func() {
 
 			bundleId := "testbundle"
 			revision := "1234"
@@ -139,7 +141,7 @@ var _ = Describe("storage", func() {
 			Expect(err.Error()).Should(Equal(fmt.Sprintf("No bundle with id '%s' and revision '%s' was found", bundleId, revision)))
 		})
 
-		It("Delete tag missing", func() {
+		PIt("Delete tag missing", func() {
 			bundleId := "testbundle"
 			revision := "1234"
 			tag := "test"
@@ -150,7 +152,7 @@ var _ = Describe("storage", func() {
 			Expect(err.Error()).Should(Equal(fmt.Sprintf("No tag with name '%s' was found for bundle with id '%s' and revision '%s'", tag, bundleId, revision)))
 		})
 
-		It("Get tag missing tag", func() {
+		PIt("Get tag missing tag", func() {
 			bundleId := "testbundle"
 			tag := "test"
 			sha, err := storageImpl.GetRevisionForTag(bundleId, tag)
@@ -166,16 +168,27 @@ var _ = Describe("storage", func() {
 
 		var bucketName string
 
-		BeforeEach(func() {
+		BeforeSuite(func() {
 
-			bucketName = uuid.NewV1().String()
+			projectID := os.Getenv("PROJECTID")
 
-			gcloud, err := storage.CreateGCloudStorage("", bucketName)
+			Expect(projectID).ShouldNot(BeEmpty())
+
+			bucketName = "bundle-test-" + uuid.NewV1().String()
+
+			gcloud, err := storage.CreateGCloudStorage(projectID, bucketName)
 
 			Expect(err).Should(BeNil(), "Could not create g cloud storage")
 
 			storageImpl = gcloud
 
+		})
+
+		AfterSuite(func() {
+			// gcloud := (storageImpl.(*storage.GCloudStorageImpl))
+			// err := gcloud.Bucket.Delete(context.Background())
+
+			// Expect(err).Should(BeNil(), "Could not clean up bucket from test")
 		})
 
 		TestStorage()
@@ -199,7 +212,7 @@ func createFakeBinary(length int) []byte {
 }
 
 func doSha(data []byte) string {
-	bytes := sha512.Sum512(data)
+	bytes := sha512.New().Sum(data)
 
-	return string(bytes[:len(bytes)])
+	return hex.EncodeToString(bytes)
 }

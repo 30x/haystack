@@ -3,7 +3,8 @@ import:
 - package: cloud.google.com/go/storage
   version: v0.4.0
 - package: github.com/gorilla/mux
+- package: github.com/satori/go.uuid
 testImport:
 - package: github.com/onsi/ginkgo/ginkgo
 - package: github.com/onsi/gomega
-- package: github.com/satori/go.uuid
+

@@ -5,13 +5,13 @@ import "io"
 //Storage the interface for bundle storage
 type Storage interface {
 
-	//StoreBundle store the bytes of the bundle id.  Returns the new revision and any error
+	//SaveBundle store the bytes of the bundle id.  Returns the new revision and any error
 	SaveBundle(bytes io.Reader, bundleID string) (string, error)
 
-	//Get the bundle and return it
+	//GetBundle get the bundle and return it
 	GetBundle(bundleID, revision string) (io.ReadCloser, error)
 
-	//Create a tag for the bundle id
+	//CreateTag create a tag for the bundle id
 	CreateTag(bundleID, revision, tag string) error
 
 	//GetRevisionForTag Get the revision of the bundle and tag.  If none is specified an error will be returned
