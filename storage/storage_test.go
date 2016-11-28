@@ -2,6 +2,7 @@ package storage_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/hex"
 	"fmt"
 	"io/ioutil"
@@ -9,11 +10,13 @@ import (
 
 	"crypto/sha512"
 
+	gstorage "cloud.google.com/go/storage"
 	"github.com/30x/haystack/storage"
 	"github.com/satori/go.uuid"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"google.golang.org/api/iterator"
 )
 
 var _ = Describe("storage", func() {
@@ -36,7 +39,7 @@ var _ = Describe("storage", func() {
 			Expect(err.Error()).Should(Equal("You must specify a bundle id"))
 		})
 
-		FIt("Valid Bundle Save + GET", func() {
+		It("Valid Bundle Save + GET", func() {
 
 			//1k
 			data := createFakeBinary(1024)
@@ -65,7 +68,7 @@ var _ = Describe("storage", func() {
 
 		})
 
-		PIt("Missing bundle Get", func() {
+		It("Missing bundle Get", func() {
 			bundleId := "bundlethatshouldntexist"
 			sha := "bad sha"
 
@@ -73,11 +76,11 @@ var _ = Describe("storage", func() {
 
 			beNil(reader)
 
-			Expect(err.Error()).Should(Equal(fmt.Sprintf("No bundle with bundleId '%s' and revision '%s' could be found", bundleId, sha)))
+			Expect(err).Should(Equal(storage.ErrRevisionNotExist))
 
 		})
 
-		PIt("Create and get tag", func() {
+		It("Create and get tag", func() {
 			//save a 1 k file and then create a tag for it
 
 			bundleId := uuid.NewV1().String()
@@ -130,36 +133,35 @@ var _ = Describe("storage", func() {
 			Expect(revision).Should(Equal(sha2))
 		})
 
-		PIt("Create tag missing revision", func() {
+		It("Create tag missing revision", func() {
 
 			bundleId := "testbundle"
 			revision := "1234"
 
-			//try to create a tag on sometrhing that doesn't exist
+			//try to create a tag on something that doesn't exist
 			err := storageImpl.CreateTag(bundleId, revision, "test")
 
-			Expect(err.Error()).Should(Equal(fmt.Sprintf("No bundle with id '%s' and revision '%s' was found", bundleId, revision)))
+			Expect(err).Should(Equal(storage.ErrRevisionNotExist))
 		})
 
-		PIt("Delete tag missing", func() {
+		It("Delete tag missing", func() {
 			bundleId := "testbundle"
-			revision := "1234"
 			tag := "test"
 
 			//try to create a tag on sometrhing that doesn't exist
-			err := storageImpl.CreateTag(bundleId, revision, tag)
+			err := storageImpl.DeleteTag(bundleId, tag)
 
-			Expect(err.Error()).Should(Equal(fmt.Sprintf("No tag with name '%s' was found for bundle with id '%s' and revision '%s'", tag, bundleId, revision)))
+			Expect(err).Should(Equal(storage.ErrTagNotExist))
 		})
 
-		PIt("Get tag missing tag", func() {
+		It("Get tag missing tag", func() {
 			bundleId := "testbundle"
 			tag := "test"
 			sha, err := storageImpl.GetRevisionForTag(bundleId, tag)
 
-			beNil(sha)
+			beEmpty(sha)
 
-			Expect(err.Error()).Should(Equal(fmt.Sprintf("No tag with name '%s' was found for bundle with id '%s'", tag, bundleId)))
+			Expect(err).Should(Equal(storage.ErrTagNotExist))
 		})
 	}
 
@@ -172,7 +174,7 @@ var _ = Describe("storage", func() {
 
 			projectID := os.Getenv("PROJECTID")
 
-			Expect(projectID).ShouldNot(BeEmpty())
+			Expect(projectID).ShouldNot(BeEmpty(), "You must set the PROJECTID env variable for your gcloud project to run the tests")
 
 			bucketName = "bundle-test-" + uuid.NewV1().String()
 
@@ -185,10 +187,29 @@ var _ = Describe("storage", func() {
 		})
 
 		AfterSuite(func() {
-			// gcloud := (storageImpl.(*storage.GCloudStorageImpl))
-			// err := gcloud.Bucket.Delete(context.Background())
+			gcloud := (storageImpl.(*storage.GCloudStorageImpl))
 
-			// Expect(err).Should(BeNil(), "Could not clean up bucket from test")
+			context := context.Background()
+
+			itr := gcloud.Bucket.Objects(context, &gstorage.Query{})
+
+			for {
+				obj, err := itr.Next()
+
+				if err == iterator.Done {
+					break
+				}
+
+				err = gcloud.Bucket.Object(obj.Name).Delete(context)
+
+				Expect(err).Should(BeNil(), fmt.Sprintf("Error when deleting object %s is %s", obj.Name, err))
+
+			}
+
+			//now delete the bucket
+			err := gcloud.Bucket.Delete(context)
+
+			Expect(err).Should(BeNil(), "Could not clean up bucket from test")
 		})
 
 		TestStorage()
@@ -198,6 +219,10 @@ var _ = Describe("storage", func() {
 
 func beNil(obj interface{}) {
 	Expect(obj).Should(BeNil())
+}
+
+func beEmpty(obj string) {
+	Expect(obj).Should(BeEmpty())
 }
 
 func createFakeBinary(length int) []byte {
@@ -212,7 +237,10 @@ func createFakeBinary(length int) []byte {
 }
 
 func doSha(data []byte) string {
-	bytes := sha512.New().Sum(data)
+	hasher := sha512.New()
+	hasher.Write(data)
+
+	bytes := hasher.Sum(nil)
 
 	return hex.EncodeToString(bytes)
 }

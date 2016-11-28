@@ -1,6 +1,9 @@
 package storage
 
-import "io"
+import (
+	"errors"
+	"io"
+)
 
 //Storage the interface for bundle storage
 type Storage interface {
@@ -20,3 +23,11 @@ type Storage interface {
 	//DeleteTag a tag for the bundleId and tag.  If the tag does not exist, and error will be reteurned
 	DeleteTag(bundleID, tag string) error
 }
+
+var (
+	//ErrRevisionNotExist returned when a revision does not exist
+	ErrRevisionNotExist = errors.New("Revision in bucket does not exist")
+
+	//ErrTagNotExist returned when a tag does not exist
+	ErrTagNotExist = errors.New("Tag in bucket does not exist")
+)

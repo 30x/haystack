@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha512"
 	"encoding/hex"
@@ -8,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"strings"
 
 	uuid "github.com/satori/go.uuid"
 
@@ -122,23 +124,98 @@ func (s *GCloudStorageImpl) SaveBundle(bytes io.Reader, bundleID string) (string
 }
 
 //GetBundle the bundle and return it
-func (s *GCloudStorageImpl) GetBundle(id, revision string) (io.ReadCloser, error) {
-	return nil, nil
+func (s *GCloudStorageImpl) GetBundle(bundleID, sha512 string) (io.ReadCloser, error) {
+	targetFile := getRevisionPath(bundleID, sha512)
+
+	destinationObject := s.Bucket.Object(targetFile)
+
+	reader, err := destinationObject.NewReader(s.Context)
+
+	if err != nil {
+
+		if err == storage.ErrObjectNotExist {
+			return nil, ErrRevisionNotExist
+		}
+
+		return nil, err
+	}
+
+	return reader, nil
 }
 
 //CreateTag create a tag for the bundle id
-func (s *GCloudStorageImpl) CreateTag(bundleID, revision, tag string) error {
-	return nil
+func (s *GCloudStorageImpl) CreateTag(bundleID, sha512, tag string) error {
+
+	targetFile := getRevisionPath(bundleID, sha512)
+
+	//check it exists
+	_, err := s.Bucket.Object(targetFile).Attrs(s.Context)
+
+	if err != nil {
+		if err == storage.ErrObjectNotExist {
+			return ErrRevisionNotExist
+		}
+
+		return err
+	}
+
+	//now create the file
+
+	tagPath := getTagPath(bundleID, tag)
+
+	tagObject := s.Bucket.Object(tagPath)
+
+	writer := tagObject.NewWriter(s.Context)
+
+	_, err = io.Copy(writer, strings.NewReader(sha512))
+
+	if err != nil {
+		return err
+	}
+
+	//close the output to the file
+	err = writer.Close()
+
+	return err
 }
 
 //GetRevisionForTag Get the revision of the bundle and tag.  If none is specified an error will be returned
 func (s *GCloudStorageImpl) GetRevisionForTag(bundleID, tag string) (string, error) {
-	return "", nil
+	tagPath := getTagPath(bundleID, tag)
+
+	reader, err := s.Bucket.Object(tagPath).NewReader(s.Context)
+
+	if err != nil {
+		if err == storage.ErrObjectNotExist {
+			return "", ErrTagNotExist
+		}
+		return "", err
+	}
+
+	shaBuffer := &bytes.Buffer{}
+
+	_, err = io.Copy(shaBuffer, reader)
+
+	if err != nil {
+		return "", err
+	}
+
+	//now we've copied return the string
+	return shaBuffer.String(), nil
 }
 
 //DeleteTag a tag for the bundleId and tag.  If the tag does not exist, and error will be reteurned
 func (s *GCloudStorageImpl) DeleteTag(bundleID, tag string) error {
-	return nil
+
+	tagPath := getTagPath(bundleID, tag)
+
+	err := s.Bucket.Object(tagPath).Delete(s.Context)
+
+	if err == storage.ErrObjectNotExist {
+		return ErrTagNotExist
+	}
+
+	return err
 }
 
 func getTempUploadPath(bundleID string) string {
