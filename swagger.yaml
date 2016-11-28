@@ -2,8 +2,7 @@ swagger: "2.0"
 info:
   version: "0.0.1"
   title: Swagger API
-host: playground.apistudio.io
-basePath: /try/215594a5-e3fd-4e52-ae3b-4cb1c0fab779
+basePath: /api
 schemes:
   - http
   - https
@@ -95,7 +94,83 @@ paths:
           description: Error
           schema:
             $ref:  "#/definitions/Errors"
-
+  /bundles/{bundleName}/tags:
+    parameters:
+      - $ref: '#/parameters/bundleName'
+    post:
+      parameters:
+        - name: _
+          in: body
+          required: true
+          description: Input for tag creation
+          schema:
+            $ref: '#/definitions/TagCreate'
+      description: Create a new tag with the bundle revision.
+      produces:
+        - application/json
+      consumes:
+        - application/json
+      responses:
+        200:
+          schema:
+            $ref: '#/definitions/TagInfo'
+          description: Success
+        404:
+          description: Bundle not found
+        401:
+          description: Not a valid JWT token
+        403:
+          description: You are not authorized to get this bundle
+        default:
+          description: Error
+          schema:
+            $ref:  "#/definitions/Errors"
+  /bundles/{bundleName}/tags/{tagName}:
+    parameters:
+      - $ref: '#/parameters/bundleName'
+      - $ref: '#/parameters/tagName'
+    get:
+      description: Return the bundle download
+      produces:
+        - application/json
+      consumes:
+        - application/json
+      responses:
+        200:
+          schema:
+            $ref: '#/definitions/TagInfo'
+          description: Success
+        404:
+          description: Bundle not found
+        401:
+          description: Not a valid JWT token
+        403:
+          description: You are not authorized to get this bundle
+        default:
+          description: Error
+          schema:
+            $ref:  "#/definitions/Errors"
+    delete:
+      description: Return the bundle download
+      produces:
+        - application/json
+      consumes:
+        - application/json
+      responses:
+        200:
+          schema:
+            $ref: '#/definitions/TagInfo'
+          description: Success
+        404:
+          description: Bundle not found
+        401:
+          description: Not a valid JWT token
+        403:
+          description: You are not authorized to get this bundle
+        default:
+          description: Error
+          schema:
+            $ref:  "#/definitions/Errors"
 definitions:
   Resource:
     type: object
@@ -133,6 +208,27 @@ definitions:
       date:
         type: string
         description: A list of all urls for this bundle
+  TagInfo:
+    allOf:
+    - $ref: '#/definitions/Resource'
+    properties:
+      tag:
+        type: string
+        description: The name of a tag
+      revision:
+        type: string
+        description: The revision in the bundle to set in the tag
+      bundleUrl:
+        type: string
+        description: The url of the bundle
+  TagCreate:
+    properties:
+      tag:
+        type: string
+        description: The name of a tag
+      revision:
+        type: string
+        description: The revision in the bundle to set in the tag
   Errors:
     properties:
        errors:
@@ -151,4 +247,10 @@ parameters:
     in: path
     required: true
     description: The revision of the bundle
+    type: string
+  tagName:
+    name: tagName
+    in: path
+    required: true
+    description: The name of the tag
     type: string

@@ -226,10 +226,6 @@ func getRevisionPath(bundleID, revision string) string {
 	return fmt.Sprintf("%s/revisions/%s.zip", bundleID, revision)
 }
 
-func getTagsPath(bundleID string) string {
-	return fmt.Sprintf("%s/tags/", bundleID)
-}
-
 func getTagPath(bundleID, tag string) string {
 	return fmt.Sprintf("%s/tags/%s", bundleID, tag)
 }
