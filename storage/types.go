@@ -14,6 +14,9 @@ type Storage interface {
 	//GetBundle get the bundle and return it
 	GetBundle(bundleID, revision string) (io.ReadCloser, error)
 
+	//GetRevisions get the revisions for the bundle and return them.
+	GetRevisions(bundleID string) ([]string, error)
+
 	//CreateTag create a tag for the bundle id
 	CreateTag(bundleID, revision, tag string) error
 

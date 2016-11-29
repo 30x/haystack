@@ -10,6 +10,7 @@ import (
 	"io"
 	"log"
 	"strings"
+	"time"
 
 	"google.golang.org/api/iterator"
 
@@ -66,6 +67,8 @@ func (s *GCloudStorageImpl) SaveBundle(bytes io.Reader, bundleID string) (string
 		return "", errors.New("You must specify a bundle id")
 	}
 
+	timestamp := time.Now()
+
 	tempObjectName := getTempUploadPath(bundleID)
 
 	tempObject := s.Bucket.Object(tempObjectName)
@@ -103,7 +106,7 @@ func (s *GCloudStorageImpl) SaveBundle(bytes io.Reader, bundleID string) (string
 	sha512 := hex.EncodeToString(hasher.Sum(nil))
 
 	//now rename to the target file
-	targetFile := getRevisionPath(bundleID, sha512)
+	targetFile := getRevisionData(bundleID, sha512)
 
 	destinationObject := s.Bucket.Object(targetFile)
 
@@ -113,21 +116,35 @@ func (s *GCloudStorageImpl) SaveBundle(bytes io.Reader, bundleID string) (string
 		return "", err
 	}
 
-	//now delete the origina
+	//now delete the original
 	err = tempObject.Delete(s.Context)
 
 	if err != nil {
 		return "", err
 	}
 
-	return sha512, nil
+	orderedRevision := getRevisionPath(bundleID, sha512, timestamp)
 
-	// return "", nil
+	writer = s.Bucket.Object(orderedRevision).NewWriter(s.Context)
+
+	_, err = writer.Write([]byte{0})
+
+	if err != nil {
+		return "", err
+	}
+
+	err = writer.Close()
+
+	if err != nil {
+		return "", err
+	}
+
+	return sha512, nil
 }
 
 //GetBundle the bundle and return it
 func (s *GCloudStorageImpl) GetBundle(bundleID, sha512 string) (io.ReadCloser, error) {
-	targetFile := getRevisionPath(bundleID, sha512)
+	targetFile := getRevisionData(bundleID, sha512)
 
 	destinationObject := s.Bucket.Object(targetFile)
 
@@ -145,10 +162,42 @@ func (s *GCloudStorageImpl) GetBundle(bundleID, sha512 string) (io.ReadCloser, e
 	return reader, nil
 }
 
+//GetRevisions get the revisions for the bundle and return them.
+func (s *GCloudStorageImpl) GetRevisions(bundleID string) ([]string, error) {
+
+	revisions := []string{}
+
+	//scan all tags for the bundleid
+	itr := s.Bucket.Objects(s.Context, &storage.Query{
+		Prefix: fmt.Sprintf("%s/revisions", bundleID),
+	})
+
+	for {
+		obj, err := itr.Next()
+
+		if err != nil {
+			if err == iterator.Done {
+				break
+			}
+
+			return nil, err
+		}
+
+		parts := strings.Split(obj.Name, "-")
+
+		revision := parts[len(parts)-1]
+
+		revisions = append(revisions, revision)
+
+	}
+
+	return revisions, nil
+}
+
 //CreateTag create a tag for the bundle id
 func (s *GCloudStorageImpl) CreateTag(bundleID, sha512, tag string) error {
 
-	targetFile := getRevisionPath(bundleID, sha512)
+	targetFile := getRevisionData(bundleID, sha512)
 
 	//check it exists
 	_, err := s.Bucket.Object(targetFile).Attrs(s.Context)
@@ -194,8 +243,12 @@ func (s *GCloudStorageImpl) GetTags(bundleID string) ([]*Tag, error) {
 	for {
 		obj, err := itr.Next()
 
-		if err == iterator.Done {
-			break
+		if err != nil {
+			if err == iterator.Done {
+				break
+			}
+
+			return nil, err
 		}
 
 		parts := strings.Split(obj.Name, "/")
@@ -267,8 +320,18 @@ func getTempUploadPath(bundleID string) string {
 	return fmt.Sprintf("%s/uploading/%s", bundleID, uuid.NewV1().String())
 }
 
-func getRevisionPath(bundleID, revision string) string {
-	return fmt.Sprintf("%s/revisions/%s.zip", bundleID, revision)
+func getRevisionData(bundleID, revision string) string {
+	return fmt.Sprintf("%s/revisionData/%s.zip", bundleID, revision)
+}
+
+//get the path where a revision pointer is stored
+func getRevisionPath(bundleID, revision string, timestamp time.Time) string {
+	//take the timestamp and minus the max so we get reverse ordering
+
+	orderID := timestamp.UTC().Format(time.RFC3339Nano)
+
+	// return fmt.Sprintf("%s/revisions/%020d-%s", bundleID, orderID, revision)
+	return fmt.Sprintf("%s/revisions/%s-%s", bundleID, orderID, revision)
 }
 
 func getTagPath(bundleID, tag string) string {

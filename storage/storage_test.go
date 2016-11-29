@@ -2,21 +2,18 @@ package storage_test
 
 import (
 	"bytes"
-	"context"
 	"encoding/hex"
-	"fmt"
 	"io/ioutil"
+	"math/rand"
 	"os"
 
 	"crypto/sha512"
 
-	gstorage "cloud.google.com/go/storage"
 	"github.com/30x/haystack/storage"
 	"github.com/satori/go.uuid"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"google.golang.org/api/iterator"
 )
 
 var _ = Describe("storage", func() {
@@ -68,7 +65,42 @@ var _ = Describe("storage", func() {
 
 		})
 
-		FIt("Missing bundle Get", func() {
+		FIt("Get Bundle Revisions", func() {
+
+			data1 := createFakeBinary(100)
+			data2 := createFakeBinary(101)
+
+			bundleId := uuid.NewV1().String()
+
+			sha1, err := storageImpl.SaveBundle(bytes.NewReader(data1), bundleId)
+
+			beNil(err)
+
+			expectedSha := doSha(data1)
+
+			Expect(sha1).Should(Equal(expectedSha))
+
+			sha2, err := storageImpl.SaveBundle(bytes.NewReader(data2), bundleId)
+
+			beNil(err)
+
+			expectedSha = doSha(data2)
+
+			Expect(sha2).Should(Equal(expectedSha))
+
+			//now retrieve it
+
+			result, err := storageImpl.GetRevisions(bundleId)
+
+			beNil(err)
+
+			Expect(len(result)).Should(Equal(2))
+
+			Expect(result[0]).Should(Equal(sha1))
+			Expect(result[1]).Should(Equal(sha2))
+		})
+
+		It("Missing bundle Get", func() {
 			bundleId := "bundlethatshouldntexist"
 			sha := "bad sha"
 
@@ -80,7 +112,7 @@ var _ = Describe("storage", func() {
 
 		})
 
-		FIt("Create get and list tags", func() {
+		It("Create get and list tags", func() {
 			//save a 1 k file and then create a tag for it
 
 			bundleId := uuid.NewV1().String()
@@ -202,29 +234,29 @@ var _ = Describe("storage", func() {
 		})
 
 		AfterSuite(func() {
-			gcloud := (storageImpl.(*storage.GCloudStorageImpl))
+			// gcloud := (storageImpl.(*storage.GCloudStorageImpl))
 
-			context := context.Background()
+			// context := context.Background()
 
-			itr := gcloud.Bucket.Objects(context, &gstorage.Query{})
+			// itr := gcloud.Bucket.Objects(context, &gstorage.Query{})
 
-			for {
-				obj, err := itr.Next()
+			// for {
+			// 	obj, err := itr.Next()
 
-				if err == iterator.Done {
-					break
-				}
+			// 	if err == iterator.Done {
+			// 		break
+			// 	}
 
-				err = gcloud.Bucket.Object(obj.Name).Delete(context)
+			// 	err = gcloud.Bucket.Object(obj.Name).Delete(context)
 
-				Expect(err).Should(BeNil(), fmt.Sprintf("Error when deleting object %s is %s", obj.Name, err))
+			// 	Expect(err).Should(BeNil(), fmt.Sprintf("Error when deleting object %s is %s", obj.Name, err))
 
-			}
+			// }
 
-			//now delete the bucket
-			err := gcloud.Bucket.Delete(context)
+			// //now delete the bucket
+			// err := gcloud.Bucket.Delete(context)
 
-			Expect(err).Should(BeNil(), "Could not clean up bucket from test")
+			// Expect(err).Should(BeNil(), "Could not clean up bucket from test")
 		})
 
 		TestStorage()
@@ -245,7 +277,7 @@ func createFakeBinary(length int) []byte {
 	byteArray := make([]byte, length)
 
 	for i := 0; i < length; i++ {
-		byteArray[i] = 1
+		byteArray[i] = byte(rand.Intn(255))
 	}
 
 	return byteArray
