@@ -11,6 +11,8 @@ import (
 	"log"
 	"strings"
 
+	"google.golang.org/api/iterator"
+
 	uuid "github.com/satori/go.uuid"
 
 	"cloud.google.com/go/storage"
@@ -179,10 +181,53 @@ func (s *GCloudStorageImpl) CreateTag(bundleID, sha512, tag string) error {
 	return err
 }
 
+//GetTags get the tags
+func (s *GCloudStorageImpl) GetTags(bundleID string) ([]*Tag, error) {
+
+	tags := []*Tag{}
+
+	//scan all tags for the bundleid
+	itr := s.Bucket.Objects(s.Context, &storage.Query{
+		Prefix: fmt.Sprintf("%s/tags", bundleID),
+	})
+
+	for {
+		obj, err := itr.Next()
+
+		if err == iterator.Done {
+			break
+		}
+
+		parts := strings.Split(obj.Name, "/")
+
+		tagName := parts[len(parts)-1]
+
+		//TODO make this fan out/merge for faster execution with lots of tags
+		shaValue, err := s.getShaFromTag(obj.Name)
+
+		if err != nil {
+			return nil, err
+		}
+
+		tags = append(tags, &Tag{
+			Name:     tagName,
+			Revision: shaValue,
+		})
+
+	}
+
+	return tags, nil
+
+}
+
 //GetRevisionForTag Get the revision of the bundle and tag.  If none is specified an error will be returned
 func (s *GCloudStorageImpl) GetRevisionForTag(bundleID, tag string) (string, error) {
 	tagPath := getTagPath(bundleID, tag)
 
+	return s.getShaFromTag(tagPath)
+}
+
+func (s *GCloudStorageImpl) getShaFromTag(tagPath string) (string, error) {
 	reader, err := s.Bucket.Object(tagPath).NewReader(s.Context)
 
 	if err != nil {

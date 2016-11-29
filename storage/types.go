@@ -17,6 +17,9 @@ type Storage interface {
 	//CreateTag create a tag for the bundle id
 	CreateTag(bundleID, revision, tag string) error
 
+	//GetTags get the tags for the bundle. TODO, maybe make this an iterator for the return?
+	GetTags(bundleID string) ([]*Tag, error)
+
 	//GetRevisionForTag Get the revision of the bundle and tag.  If none is specified an error will be returned
 	GetRevisionForTag(bundleID, tag string) (string, error)
 
@@ -31,3 +34,9 @@ var (
 	//ErrTagNotExist returned when a tag does not exist
 	ErrTagNotExist = errors.New("Tag in bucket does not exist")
 )
+
+//Tag a structure to return names and revisions of tags
+type Tag struct {
+	Revision string
+	Name     string
+}

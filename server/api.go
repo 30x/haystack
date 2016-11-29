@@ -28,6 +28,7 @@ func CreateRoutes() *mux.Router {
 	r.Path("/bundles/{bundleName}/revisions/{revision}").Methods("DELETE").HandlerFunc(DeleteBundleRevision)
 
 	r.Path("/bundles/{bundleName}/tags").Methods("POST").HandlerFunc(CreateTag)
+	r.Path("/bundles/{bundleName}/tags").Methods("GET").HandlerFunc(GetTags)
 
 	r.Path("/bundles/{bundleName}/tags/{tagName}").Methods("GET").HandlerFunc(GetTag)
 	r.Path("/bundles/{bundleName}/tags/{tagName}").Methods("DELETE").HandlerFunc(GetTag)
@@ -58,6 +59,11 @@ func DeleteBundleRevision(w http.ResponseWriter, r *http.Request) {
 
 //CreateTag delete the bundle revision
 func CreateTag(w http.ResponseWriter, r *http.Request) {
+
+}
+
+//GetTags delete the bundle revision
+func GetTags(w http.ResponseWriter, r *http.Request) {
 
 }
 

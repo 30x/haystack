@@ -68,7 +68,7 @@ var _ = Describe("storage", func() {
 
 		})
 
-		It("Missing bundle Get", func() {
+		FIt("Missing bundle Get", func() {
 			bundleId := "bundlethatshouldntexist"
 			sha := "bad sha"
 
@@ -80,7 +80,7 @@ var _ = Describe("storage", func() {
 
 		})
 
-		It("Create and get tag", func() {
+		FIt("Create get and list tags", func() {
 			//save a 1 k file and then create a tag for it
 
 			bundleId := uuid.NewV1().String()
@@ -131,6 +131,21 @@ var _ = Describe("storage", func() {
 			beNil(err)
 
 			Expect(revision).Should(Equal(sha2))
+
+			tags, err := storageImpl.GetTags(bundleId)
+
+			beNil(err)
+
+			Expect(len(tags)).Should(Equal(3))
+
+			Expect(tags[0].Name).Should(Equal(firstTag))
+			Expect(tags[0].Revision).Should(Equal(sha1))
+
+			Expect(tags[1].Name).Should(Equal(secondTag))
+			Expect(tags[1].Revision).Should(Equal(sha1))
+
+			Expect(tags[2].Name).Should(Equal(thirdTag))
+			Expect(tags[2].Revision).Should(Equal(sha2))
 		})
 
 		It("Create tag missing revision", func() {
