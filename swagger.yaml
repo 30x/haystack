@@ -14,6 +14,17 @@ paths:
         - multipart/form-data
       produces:
         - application/json
+      parameters:
+        - name: bundleName
+          in: formData
+          required: true
+          type: string
+          description: The name of the bundle
+        - name: bundleData
+          in: formData
+          type: file
+          required: true
+          description: The data for the bundle file
       responses:
         201:
           description: Success
@@ -125,6 +136,27 @@ paths:
           description: Error
           schema:
             $ref:  "#/definitions/Errors"
+    get:
+      description: Get all tags for the bundle
+      produces:
+        - application/json
+      consumes:
+        - application/json
+      responses:
+        200:
+          schema:
+            $ref: '#/definitions/Tags'
+          description: Success
+        404:
+          description: Bundle not found
+        401:
+          description: Not a valid JWT token
+        403:
+          description: You are not authorized to get this bundle
+        default:
+          description: Error
+          schema:
+            $ref:  "#/definitions/Errors"
   /bundles/{bundleName}/tags/{tagName}:
     parameters:
       - $ref: '#/parameters/bundleName'
@@ -208,6 +240,14 @@ definitions:
       date:
         type: string
         description: A list of all urls for this bundle
+  Tags:
+    allOf:
+    - $ref: '#/definitions/Resource'
+    properties:
+      tags:
+        type: array
+        items:
+          $ref: '#/definitions/TagInfo'
   TagInfo:
     allOf:
     - $ref: '#/definitions/Resource'
