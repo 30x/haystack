@@ -16,6 +16,8 @@ import (
 
 	uuid "github.com/satori/go.uuid"
 
+	"encoding/base64"
+
 	"cloud.google.com/go/storage"
 )
 
@@ -163,16 +165,25 @@ func (s *GCloudStorageImpl) GetBundle(bundleID, sha512 string) (io.ReadCloser, e
 }
 
 //GetRevisions get the revisions for the bundle and return them.
-func (s *GCloudStorageImpl) GetRevisions(bundleID string) ([]string, error) {
+func (s *GCloudStorageImpl) GetRevisions(bundleID, cursor string, pageSize int) ([]string, string, error) {
 
 	revisions := []string{}
 
 	//scan all tags for the bundleid
+
+	startValue, useCursor := decodeCursor(cursor, bundleID)
+
+	if !useCursor {
+		startValue = fmt.Sprintf("%s/revisions", bundleID)
+	}
+
 	itr := s.Bucket.Objects(s.Context, &storage.Query{
-		Prefix: fmt.Sprintf("%s/revisions", bundleID),
+		Prefix: startValue,
 	})
 
-	for {
+	last := ""
+
+	for i := 0; i < pageSize; i++ {
 		obj, err := itr.Next()
 
 		if err != nil {
@@ -180,8 +191,10 @@ func (s *GCloudStorageImpl) GetRevisions(bundleID string) ([]string, error) {
 				break
 			}
 
-			return nil, err
+			return nil, "", err
 		}
+
+		last = obj.Name
 
 		parts := strings.Split(obj.Name, "-")
 
@@ -191,7 +204,13 @@ func (s *GCloudStorageImpl) GetRevisions(bundleID string) ([]string, error) {
 
 	}
 
-	return revisions, nil
+	returnCursor := ""
+
+	if len(revisions) == pageSize {
+		returnCursor = encodeCursor(last)
+	}
+
+	return revisions, returnCursor, nil
 }
 
 //CreateTag create a tag for the bundle id
@@ -231,16 +250,24 @@ func (s *GCloudStorageImpl) CreateTag(bundleID, sha512, tag string) error {
 }
 
 //GetTags get the tags
-func (s *GCloudStorageImpl) GetTags(bundleID string) ([]*Tag, error) {
+func (s *GCloudStorageImpl) GetTags(bundleID, cursor string, pageSize int) ([]*Tag, string, error) {
 
 	tags := []*Tag{}
 
+	startValue, useCursor := decodeCursor(cursor, bundleID)
+
+	if !useCursor {
+		startValue = fmt.Sprintf("%s/tags", bundleID)
+	}
+
 	//scan all tags for the bundleid
 	itr := s.Bucket.Objects(s.Context, &storage.Query{
-		Prefix: fmt.Sprintf("%s/tags", bundleID),
+		Prefix: startValue,
 	})
 
-	for {
+	last := ""
+
+	for i := 0; i < pageSize; i++ {
 		obj, err := itr.Next()
 
 		if err != nil {
@@ -248,8 +275,10 @@ func (s *GCloudStorageImpl) GetTags(bundleID string) ([]*Tag, error) {
 				break
 			}
 
-			return nil, err
+			return nil, "", err
 		}
+
+		last = obj.Name
 
 		parts := strings.Split(obj.Name, "/")
 
@@ -259,7 +288,7 @@ func (s *GCloudStorageImpl) GetTags(bundleID string) ([]*Tag, error) {
 		shaValue, err := s.getShaFromTag(obj.Name)
 
 		if err != nil {
-			return nil, err
+			return nil, "", err
 		}
 
 		tags = append(tags, &Tag{
@@ -269,7 +298,13 @@ func (s *GCloudStorageImpl) GetTags(bundleID string) ([]*Tag, error) {
 
 	}
 
-	return tags, nil
+	returnCursor := ""
+
+	if len(tags) == pageSize {
+		returnCursor = encodeCursor(last)
+	}
+
+	return tags, returnCursor, nil
 
 }
 
@@ -336,4 +371,35 @@ func getRevisionPath(bundleID, revision string, timestamp time.Time) string {
 
 func getTagPath(bundleID, tag string) string {
 	return fmt.Sprintf("%s/tags/%s", bundleID, tag)
+}
+
+//encodeCursor encode the cursor so that the user can return it later
+func encodeCursor(lastValue string) string {
+	if lastValue == "" {
+		return ""
+	}
+	return base64.RawURLEncoding.EncodeToString([]byte(lastValue))
+}
+
+//decodeCursor decode the cursor, if it exists, then validate it matches the expected bundle id.  If we can't decode, or it doesn't match, false will be returned.  If the cursor is not present, false will be returned
+func decodeCursor(cursorValue, bundleID string) (string, bool) {
+
+	if cursorValue == "" {
+		return "", false
+	}
+
+	bytes, err := base64.RawURLEncoding.DecodeString(cursorValue)
+
+	if err != nil {
+		return "", false
+	}
+
+	stringVal := string(bytes)
+
+	//not the bundle Id we expect, which is a security risk, ignore it
+	if strings.Index(stringVal, bundleID) != 0 {
+		return "", false
+	}
+
+	return stringVal, true
 }

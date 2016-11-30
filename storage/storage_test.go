@@ -2,6 +2,7 @@ package storage_test
 
 import (
 	"bytes"
+	"encoding/binary"
 	"io/ioutil"
 
 	"github.com/30x/haystack/storage"
@@ -61,39 +62,56 @@ var _ = Describe("storage", func() {
 
 		})
 
-		It("Get Bundle Revisions", func() {
+		FIt("Get Bundle Revisions", func() {
 
-			data1 := CreateFakeBinary(100)
-			data2 := CreateFakeBinary(101)
+			//tests bundle revisions with paging
+			size := 5
+
+			savedShas := make([]string, size)
 
 			bundleId := uuid.NewV1().String()
 
-			sha1, err := storageImpl.SaveBundle(bytes.NewReader(data1), bundleId)
+			for i := 0; i < size; i++ {
 
-			IsNil(err)
+				fileData := generatePayloadFromInt(256)
 
-			expectedSha := DoSha(data1)
+				sha, err := storageImpl.SaveBundle(bytes.NewReader(fileData), bundleId)
 
-			Expect(sha1).Should(Equal(expectedSha))
+				IsNil(err)
 
-			sha2, err := storageImpl.SaveBundle(bytes.NewReader(data2), bundleId)
+				expectedSha := DoSha(fileData)
 
-			IsNil(err)
+				Expect(sha).Should(Equal(expectedSha))
 
-			expectedSha = DoSha(data2)
+				savedShas[i] = sha
 
-			Expect(sha2).Should(Equal(expectedSha))
+			}
 
-			//now retrieve it
+			//now retrieve and test
+			pageSize := 2
+			iterations := size / pageSize
+			cursor := ""
+			var err error
+			var result []string
 
-			result, err := storageImpl.GetRevisions(bundleId)
+			for i := 0; i < iterations; i++ {
 
-			IsNil(err)
+				result, cursor, err = storageImpl.GetRevisions(bundleId, cursor, pageSize)
 
-			Expect(len(result)).Should(Equal(2))
+				IsNil(err)
 
-			Expect(result[0]).Should(Equal(sha1))
-			Expect(result[1]).Should(Equal(sha2))
+				Expect(cursor).ShouldNot(BeEmpty())
+
+				startIndex := i * pageSize
+				length := startIndex + pageSize
+
+				if length > size {
+					length = size - 1
+				}
+
+				AssertStrings(savedShas, startIndex, length, result)
+			}
+
 		})
 
 		It("Missing bundle Get", func() {
@@ -160,7 +178,7 @@ var _ = Describe("storage", func() {
 
 			Expect(revision).Should(Equal(sha2))
 
-			tags, err := storageImpl.GetTags(bundleId)
+			tags, _, err := storageImpl.GetTags(bundleId, "", 100)
 
 			IsNil(err)
 
@@ -227,3 +245,31 @@ var _ = Describe("storage", func() {
 	})
 
 })
+
+//Check that the strings in expected match every index in sub.  It will start at expected[startIndex] = sub[0] to expected[startIndex+length] = sub[len(sub)]
+func AssertStrings(expected []string, startIndex, length int, sub []string) {
+
+	Expect(len(sub)).Should(Equal(startIndex+length), "Sub index length does not match")
+
+	subIndex := 0
+	expectedIndex := startIndex
+	endIndex := startIndex + length
+
+	Expect(startIndex+length < len(expected)).Should(BeTrue())
+
+	for expectedIndex < endIndex {
+		Expect(expected[expectedIndex]).Should(Equal(sub[subIndex]))
+
+		expectedIndex++
+		subIndex++
+	}
+
+}
+
+func generatePayloadFromInt(index int32) []byte {
+	buf := new(bytes.Buffer)
+	err := binary.Write(buf, binary.LittleEndian, index)
+	IsNil(err)
+
+	return buf.Bytes()
+}

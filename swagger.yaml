@@ -43,6 +43,7 @@ paths:
   /bundles/{bundleName}/revisions:
     parameters:
       - $ref: '#/parameters/bundleName'
+      - $ref: '#/parameters/cursor'
     get:
       description: Get all revisions of he bundle.
       consumes:
@@ -108,6 +109,7 @@ paths:
   /bundles/{bundleName}/tags:
     parameters:
       - $ref: '#/parameters/bundleName'
+      - $ref: '#/parameters/cursor'
     post:
       parameters:
         - name: _
@@ -212,8 +214,15 @@ definitions:
       self:
         type: string
         readOnly: true
-      kind:
+  CollectionResponse:
+    allOf:
+    - $ref: '#/definitions/Resource'
+    required:
+      - cursor
+    properties:
+      cursor:
         type: string
+        readOnly: true
   BundleCreated:
     allOf:
     - $ref: '#/definitions/Resource'
@@ -223,7 +232,7 @@ definitions:
         description: A revision that represents a unique version of this bundle
   BundleRevisions:
     allOf:
-    - $ref: '#/definitions/Resource'
+    - $ref: '#/definitions/CollectionResponse'
     properties:
       revisions:
         type: array
@@ -240,9 +249,10 @@ definitions:
       date:
         type: string
         description: A list of all urls for this bundle
+        format: date-time
   Tags:
     allOf:
-    - $ref: '#/definitions/Resource'
+    - $ref: '#/definitions/CollectionResponse'
     properties:
       tags:
         type: array
@@ -293,4 +303,10 @@ parameters:
     in: path
     required: true
     description: The name of the tag
+    type: string
+  cursor:
+    name: cursor
+    in: query
+    required: false
+    description: The cursor used to
     type: string

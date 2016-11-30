@@ -76,7 +76,8 @@ var _ = Describe("server", func() {
 		BeforeSuite(func() {
 
 			bucketName, storageImpl = CreateGCloudImpl()
-			r := server.CreateRoutes(storageImpl)
+			fakeOauth := &noOpTestAuth{}
+			r := server.CreateRoutes(storageImpl, fakeOauth)
 
 			testServer = httptest.NewServer(r)
 
@@ -168,7 +169,7 @@ func submitGetRequest(url string, parser func(body []byte)) (*http.Response, *se
 
 	// fmt.Printf("Response body is %s", string(responseBody))
 
-	errors := new(server.Errors)
+	var errors *server.Errors
 
 	//only parse our org if it's a successfull response code
 	if response.StatusCode == 200 {
@@ -192,4 +193,12 @@ func resposneBodyAsBytes(response *http.Response) []byte {
 
 	return bodyBytes
 
+}
+
+type noOpTestAuth struct{}
+
+func (n *noOpTestAuth) VerifyOAuth(next http.Handler) http.Handler{
+		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			next.ServeHTTP(rw, r)
+		})
 }
