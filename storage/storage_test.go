@@ -2,14 +2,10 @@ package storage_test
 
 import (
 	"bytes"
-	"encoding/hex"
 	"io/ioutil"
-	"math/rand"
-	"os"
-
-	"crypto/sha512"
 
 	"github.com/30x/haystack/storage"
+	t "github.com/30x/haystack/test"
 	"github.com/satori/go.uuid"
 
 	. "github.com/onsi/ginkgo"
@@ -39,15 +35,15 @@ var _ = Describe("storage", func() {
 		It("Valid Bundle Save + GET", func() {
 
 			//1k
-			data := createFakeBinary(1024)
+			data := t.CreateFakeBinary(1024)
 
 			bundleId := uuid.NewV1().String()
 
 			sha, err := storageImpl.SaveBundle(bytes.NewReader(data), bundleId)
 
-			beNil(err)
+			t.BeNil(err)
 
-			expectedSha := doSha(data)
+			expectedSha := t.DoSha(data)
 
 			Expect(sha).Should(Equal(expectedSha))
 
@@ -55,36 +51,36 @@ var _ = Describe("storage", func() {
 
 			bundleData, err := storageImpl.GetBundle(bundleId, sha)
 
-			beNil(err)
+			t.BeNil(err)
 
 			returnedBytes, err := ioutil.ReadAll(bundleData)
 
-			beNil(err)
+			t.BeNil(err)
 
 			Expect(returnedBytes).Should(Equal(data))
 
 		})
 
-		FIt("Get Bundle Revisions", func() {
+		It("Get Bundle Revisions", func() {
 
-			data1 := createFakeBinary(100)
-			data2 := createFakeBinary(101)
+			data1 := t.CreateFakeBinary(100)
+			data2 := t.CreateFakeBinary(101)
 
 			bundleId := uuid.NewV1().String()
 
 			sha1, err := storageImpl.SaveBundle(bytes.NewReader(data1), bundleId)
 
-			beNil(err)
+			t.BeNil(err)
 
-			expectedSha := doSha(data1)
+			expectedSha := t.DoSha(data1)
 
 			Expect(sha1).Should(Equal(expectedSha))
 
 			sha2, err := storageImpl.SaveBundle(bytes.NewReader(data2), bundleId)
 
-			beNil(err)
+			t.BeNil(err)
 
-			expectedSha = doSha(data2)
+			expectedSha = t.DoSha(data2)
 
 			Expect(sha2).Should(Equal(expectedSha))
 
@@ -92,7 +88,7 @@ var _ = Describe("storage", func() {
 
 			result, err := storageImpl.GetRevisions(bundleId)
 
-			beNil(err)
+			t.BeNil(err)
 
 			Expect(len(result)).Should(Equal(2))
 
@@ -106,7 +102,7 @@ var _ = Describe("storage", func() {
 
 			reader, err := storageImpl.GetBundle(bundleId, sha)
 
-			beNil(reader)
+			t.BeNil(reader)
 
 			Expect(err).Should(Equal(storage.ErrRevisionNotExist))
 
@@ -117,18 +113,18 @@ var _ = Describe("storage", func() {
 
 			bundleId := uuid.NewV1().String()
 
-			data1 := createFakeBinary(1024)
+			data1 := t.CreateFakeBinary(1024)
 
 			sha1, err := storageImpl.SaveBundle(bytes.NewReader(data1), bundleId)
 
 			//simulates a new rev
-			beNil(err)
+			t.BeNil(err)
 
-			data2 := createFakeBinary(20)
+			data2 := t.CreateFakeBinary(20)
 
 			sha2, err := storageImpl.SaveBundle(bytes.NewReader(data2), bundleId)
 
-			beNil(err)
+			t.BeNil(err)
 
 			firstTag := "tag1"
 			secondTag := "tag2"
@@ -136,37 +132,37 @@ var _ = Describe("storage", func() {
 
 			err = storageImpl.CreateTag(bundleId, sha1, firstTag)
 
-			beNil(err)
+			t.BeNil(err)
 
 			err = storageImpl.CreateTag(bundleId, sha1, secondTag)
 
-			beNil(err)
+			t.BeNil(err)
 
 			err = storageImpl.CreateTag(bundleId, sha2, thirdTag)
 
-			beNil(err)
+			t.BeNil(err)
 
 			revision, err := storageImpl.GetRevisionForTag(bundleId, firstTag)
 
-			beNil(err)
+			t.BeNil(err)
 
 			Expect(revision).Should(Equal(sha1))
 
 			revision, err = storageImpl.GetRevisionForTag(bundleId, secondTag)
 
-			beNil(err)
+			t.BeNil(err)
 
 			Expect(revision).Should(Equal(sha1))
 
 			revision, err = storageImpl.GetRevisionForTag(bundleId, thirdTag)
 
-			beNil(err)
+			t.BeNil(err)
 
 			Expect(revision).Should(Equal(sha2))
 
 			tags, err := storageImpl.GetTags(bundleId)
 
-			beNil(err)
+			t.BeNil(err)
 
 			Expect(len(tags)).Should(Equal(3))
 
@@ -206,7 +202,7 @@ var _ = Describe("storage", func() {
 			tag := "test"
 			sha, err := storageImpl.GetRevisionForTag(bundleId, tag)
 
-			beEmpty(sha)
+			t.BeEmpty(sha)
 
 			Expect(err).Should(Equal(storage.ErrTagNotExist))
 		})
@@ -219,75 +215,15 @@ var _ = Describe("storage", func() {
 
 		BeforeSuite(func() {
 
-			projectID := os.Getenv("PROJECTID")
-
-			Expect(projectID).ShouldNot(BeEmpty(), "You must set the PROJECTID env variable for your gcloud project to run the tests")
-
-			bucketName = "bundle-test-" + uuid.NewV1().String()
-
-			gcloud, err := storage.CreateGCloudStorage(projectID, bucketName)
-
-			Expect(err).Should(BeNil(), "Could not create g cloud storage")
-
-			storageImpl = gcloud
+			bucketName, storageImpl = t.CreateGCloudImpl()
 
 		})
 
 		AfterSuite(func() {
-			// gcloud := (storageImpl.(*storage.GCloudStorageImpl))
-
-			// context := context.Background()
-
-			// itr := gcloud.Bucket.Objects(context, &gstorage.Query{})
-
-			// for {
-			// 	obj, err := itr.Next()
-
-			// 	if err == iterator.Done {
-			// 		break
-			// 	}
-
-			// 	err = gcloud.Bucket.Object(obj.Name).Delete(context)
-
-			// 	Expect(err).Should(BeNil(), fmt.Sprintf("Error when deleting object %s is %s", obj.Name, err))
-
-			// }
-
-			// //now delete the bucket
-			// err := gcloud.Bucket.Delete(context)
-
-			// Expect(err).Should(BeNil(), "Could not clean up bucket from test")
+			t.RemoveGCloudTestBucket(bucketName, storageImpl)
 		})
 
 		TestStorage()
 	})
 
 })
-
-func beNil(obj interface{}) {
-	Expect(obj).Should(BeNil())
-}
-
-func beEmpty(obj string) {
-	Expect(obj).Should(BeEmpty())
-}
-
-func createFakeBinary(length int) []byte {
-
-	byteArray := make([]byte, length)
-
-	for i := 0; i < length; i++ {
-		byteArray[i] = byte(rand.Intn(255))
-	}
-
-	return byteArray
-}
-
-func doSha(data []byte) string {
-	hasher := sha512.New()
-	hasher.Write(data)
-
-	bytes := hasher.Sum(nil)
-
-	return hex.EncodeToString(bytes)
-}
