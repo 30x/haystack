@@ -14,15 +14,17 @@ import (
 	uuid "github.com/satori/go.uuid"
 	"google.golang.org/api/iterator"
 
-	gomega "github.com/onsi/gomega"
+	. "github.com/onsi/gomega"
 )
 
-func BeNil(obj interface{}) {
-	gomega.Expect(obj).Should(gomega.BeNil())
+//IsNil assert an instance is nil
+func IsNil(obj interface{}) {
+	Expect(obj).Should(BeNil())
 }
 
-func BeEmpty(obj string) {
-	gomega.Expect(obj).Should(gomega.BeEmpty())
+//IsEmpty assert a string is empty
+func IsEmpty(obj string) {
+	Expect(obj).Should(BeEmpty())
 }
 
 //CreateFakeBinary create a binary file with the specified number of bytes
@@ -52,13 +54,13 @@ func CreateGCloudImpl() (string, storage.Storage) {
 
 	projectID := os.Getenv("PROJECTID")
 
-	gomega.Expect(projectID).ShouldNot(gomega.BeEmpty(), "You must set the PROJECTID env variable for your gcloud project to run the tests")
+	Expect(projectID).ShouldNot(BeEmpty(), "You must set the PROJECTID env variable for your gcloud project to run the tests")
 
 	bucketName := "bundle-test-" + uuid.NewV1().String()
 
 	gcloud, err := storage.CreateGCloudStorage(projectID, bucketName)
 
-	gomega.Expect(err).Should(gomega.BeNil(), "Could not create g cloud storage")
+	Expect(err).Should(BeNil(), "Could not create g cloud storage")
 
 	return bucketName, gcloud
 
@@ -82,12 +84,12 @@ func RemoveGCloudTestBucket(bucketName string, storageImpl storage.Storage) {
 
 		err = gcloud.Bucket.Object(obj.Name).Delete(context)
 
-		gomega.Expect(err).Should(gomega.BeNil(), fmt.Sprintf("Error when deleting object %s is %s", obj.Name, err))
+		Expect(err).Should(BeNil(), fmt.Sprintf("Error when deleting object %s is %s", obj.Name, err))
 
 	}
 
 	//now delete the bucket
 	err := gcloud.Bucket.Delete(context)
 
-	gomega.Expect(err).Should(gomega.BeNil(), "Could not clean up bucket from test")
+	Expect(err).Should(BeNil(), "Could not clean up bucket from test")
 }

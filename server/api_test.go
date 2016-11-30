@@ -13,7 +13,7 @@ import (
 
 	"github.com/30x/haystack/server"
 	"github.com/30x/haystack/storage"
-	"github.com/30x/haystack/test"
+	. "github.com/30x/haystack/test"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -24,16 +24,16 @@ var _ = Describe("server", func() {
 	var testServer *httptest.Server
 
 	TestApi := func() {
-		It("Good Bundle Payload", func() {
-			payload := test.CreateFakeBinary(1024)
+		It("Bundle Upload and Get", func() {
+			testPayload := CreateFakeBinary(1024)
 
 			url := testServer.URL + "/api/bundles"
 
 			bundleName := "test"
 
-			response, body, err := newFileUploadRequest(url, bundleName, payload)
+			response, body, err := newFileUploadRequest(url, bundleName, testPayload)
 
-			test.BeNil(err)
+			IsNil(err)
 
 			Expect(response.StatusCode).Should(Equal(200))
 
@@ -41,15 +41,29 @@ var _ = Describe("server", func() {
 
 			err = json.Unmarshal([]byte(body), bundleCreatedResponse)
 
-			test.BeNil(err)
+			IsNil(err)
 
-			expectedSha := test.DoSha(payload)
+			expectedSha := DoSha(testPayload)
 
 			Expect(bundleCreatedResponse.Revision).Should(Equal(expectedSha))
 
-			expectedUrl := fmt.Sprintf("%s/bundles/%s/revisions/%s", testServer.URL, bundleName, expectedSha)
+			expectedUrl := fmt.Sprintf("%s/api/bundles/%s/revisions/%s", testServer.URL, bundleName, expectedSha)
 
 			Expect(bundleCreatedResponse.Self).Should(Equal(expectedUrl))
+
+			//now perform the get and assert they're equal
+			var fileBytes []byte
+
+			response, errors := submitGetRequest(bundleCreatedResponse.Self, func(body []byte) {
+				fileBytes = body
+			})
+
+			IsNil(errors)
+
+			Expect(response.StatusCode).Should(Equal(200))
+
+			Expect(fileBytes).Should(Equal(testPayload))
+
 		})
 	}
 
@@ -61,7 +75,7 @@ var _ = Describe("server", func() {
 
 		BeforeSuite(func() {
 
-			bucketName, storageImpl = test.CreateGCloudImpl()
+			bucketName, storageImpl = CreateGCloudImpl()
 			r := server.CreateRoutes(storageImpl)
 
 			testServer = httptest.NewServer(r)
@@ -69,7 +83,7 @@ var _ = Describe("server", func() {
 		})
 
 		AfterSuite(func() {
-			test.RemoveGCloudTestBucket(bucketName, storageImpl)
+			RemoveGCloudTestBucket(bucketName, storageImpl)
 		})
 
 		TestApi()
@@ -133,4 +147,49 @@ func newFileUploadRequest(url string, bundleName string, file []byte) (*http.Res
 	bodyResponse := string(bodyBytes)
 
 	return response, bodyResponse, nil
+}
+
+//submit the get request.  If the response is 200, then the parser will be invoked.  Otherwise errors will be parsed
+func submitGetRequest(url string, parser func(body []byte)) (*http.Response, *server.Errors) {
+
+	request, err := http.NewRequest("GET", url, nil)
+
+	IsNil(err)
+
+	client := &http.Client{}
+
+	response, err := client.Do(request)
+
+	IsNil(err)
+
+	defer response.Body.Close()
+
+	responseBody := resposneBodyAsBytes(response)
+
+	// fmt.Printf("Response body is %s", string(responseBody))
+
+	errors := new(server.Errors)
+
+	//only parse our org if it's a successfull response code
+	if response.StatusCode == 200 {
+		parser(responseBody)
+
+	} else if len(responseBody) > 0 {
+		//ignore error on error unmarshall.
+		json.Unmarshal(responseBody, &errors)
+
+	}
+
+	return response, errors
+}
+
+//responseBodyAsBytes get the response body and close it properly
+func resposneBodyAsBytes(response *http.Response) []byte {
+	defer response.Body.Close()
+
+	bodyBytes, err := ioutil.ReadAll(response.Body)
+	IsNil(err)
+
+	return bodyBytes
+
 }

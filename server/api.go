@@ -81,9 +81,16 @@ func (a *API) PostBundle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	//TODO, not sure this is the best way to render the URL.  Review the http package in more detail
+	scheme := r.URL.Scheme
+
+	if scheme == "" {
+		scheme = "http"
+	}
+
 	response := &BundleCreatedResponse{
 		Revision: sha,
-		Self:     fmt.Sprintf("%s://%s/api/bundles/%s/revisions/%s", r.URL.Scheme, r.URL.Host, bundleName, sha),
+		Self:     fmt.Sprintf("%s://%s/api/bundles/%s/revisions/%s", scheme, r.Host, bundleName, sha),
 	}
 
 	err = json.NewEncoder(w).Encode(response)

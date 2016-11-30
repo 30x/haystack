@@ -5,7 +5,7 @@ import (
 	"io/ioutil"
 
 	"github.com/30x/haystack/storage"
-	t "github.com/30x/haystack/test"
+	. "github.com/30x/haystack/test"
 	"github.com/satori/go.uuid"
 
 	. "github.com/onsi/ginkgo"
@@ -35,15 +35,15 @@ var _ = Describe("storage", func() {
 		It("Valid Bundle Save + GET", func() {
 
 			//1k
-			data := t.CreateFakeBinary(1024)
+			data := CreateFakeBinary(1024)
 
 			bundleId := uuid.NewV1().String()
 
 			sha, err := storageImpl.SaveBundle(bytes.NewReader(data), bundleId)
 
-			t.BeNil(err)
+			IsNil(err)
 
-			expectedSha := t.DoSha(data)
+			expectedSha := DoSha(data)
 
 			Expect(sha).Should(Equal(expectedSha))
 
@@ -51,11 +51,11 @@ var _ = Describe("storage", func() {
 
 			bundleData, err := storageImpl.GetBundle(bundleId, sha)
 
-			t.BeNil(err)
+			IsNil(err)
 
 			returnedBytes, err := ioutil.ReadAll(bundleData)
 
-			t.BeNil(err)
+			IsNil(err)
 
 			Expect(returnedBytes).Should(Equal(data))
 
@@ -63,24 +63,24 @@ var _ = Describe("storage", func() {
 
 		It("Get Bundle Revisions", func() {
 
-			data1 := t.CreateFakeBinary(100)
-			data2 := t.CreateFakeBinary(101)
+			data1 := CreateFakeBinary(100)
+			data2 := CreateFakeBinary(101)
 
 			bundleId := uuid.NewV1().String()
 
 			sha1, err := storageImpl.SaveBundle(bytes.NewReader(data1), bundleId)
 
-			t.BeNil(err)
+			IsNil(err)
 
-			expectedSha := t.DoSha(data1)
+			expectedSha := DoSha(data1)
 
 			Expect(sha1).Should(Equal(expectedSha))
 
 			sha2, err := storageImpl.SaveBundle(bytes.NewReader(data2), bundleId)
 
-			t.BeNil(err)
+			IsNil(err)
 
-			expectedSha = t.DoSha(data2)
+			expectedSha = DoSha(data2)
 
 			Expect(sha2).Should(Equal(expectedSha))
 
@@ -88,7 +88,7 @@ var _ = Describe("storage", func() {
 
 			result, err := storageImpl.GetRevisions(bundleId)
 
-			t.BeNil(err)
+			IsNil(err)
 
 			Expect(len(result)).Should(Equal(2))
 
@@ -102,7 +102,7 @@ var _ = Describe("storage", func() {
 
 			reader, err := storageImpl.GetBundle(bundleId, sha)
 
-			t.BeNil(reader)
+			IsNil(reader)
 
 			Expect(err).Should(Equal(storage.ErrRevisionNotExist))
 
@@ -113,18 +113,18 @@ var _ = Describe("storage", func() {
 
 			bundleId := uuid.NewV1().String()
 
-			data1 := t.CreateFakeBinary(1024)
+			data1 := CreateFakeBinary(1024)
 
 			sha1, err := storageImpl.SaveBundle(bytes.NewReader(data1), bundleId)
 
 			//simulates a new rev
-			t.BeNil(err)
+			IsNil(err)
 
-			data2 := t.CreateFakeBinary(20)
+			data2 := CreateFakeBinary(20)
 
 			sha2, err := storageImpl.SaveBundle(bytes.NewReader(data2), bundleId)
 
-			t.BeNil(err)
+			IsNil(err)
 
 			firstTag := "tag1"
 			secondTag := "tag2"
@@ -132,37 +132,37 @@ var _ = Describe("storage", func() {
 
 			err = storageImpl.CreateTag(bundleId, sha1, firstTag)
 
-			t.BeNil(err)
+			IsNil(err)
 
 			err = storageImpl.CreateTag(bundleId, sha1, secondTag)
 
-			t.BeNil(err)
+			IsNil(err)
 
 			err = storageImpl.CreateTag(bundleId, sha2, thirdTag)
 
-			t.BeNil(err)
+			IsNil(err)
 
 			revision, err := storageImpl.GetRevisionForTag(bundleId, firstTag)
 
-			t.BeNil(err)
+			IsNil(err)
 
 			Expect(revision).Should(Equal(sha1))
 
 			revision, err = storageImpl.GetRevisionForTag(bundleId, secondTag)
 
-			t.BeNil(err)
+			IsNil(err)
 
 			Expect(revision).Should(Equal(sha1))
 
 			revision, err = storageImpl.GetRevisionForTag(bundleId, thirdTag)
 
-			t.BeNil(err)
+			IsNil(err)
 
 			Expect(revision).Should(Equal(sha2))
 
 			tags, err := storageImpl.GetTags(bundleId)
 
-			t.BeNil(err)
+			IsNil(err)
 
 			Expect(len(tags)).Should(Equal(3))
 
@@ -202,7 +202,7 @@ var _ = Describe("storage", func() {
 			tag := "test"
 			sha, err := storageImpl.GetRevisionForTag(bundleId, tag)
 
-			t.BeEmpty(sha)
+			IsEmpty(sha)
 
 			Expect(err).Should(Equal(storage.ErrTagNotExist))
 		})
@@ -215,12 +215,12 @@ var _ = Describe("storage", func() {
 
 		BeforeSuite(func() {
 
-			bucketName, storageImpl = t.CreateGCloudImpl()
+			bucketName, storageImpl = CreateGCloudImpl()
 
 		})
 
 		AfterSuite(func() {
-			t.RemoveGCloudTestBucket(bucketName, storageImpl)
+			RemoveGCloudTestBucket(bucketName, storageImpl)
 		})
 
 		TestStorage()
