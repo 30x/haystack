@@ -67,7 +67,6 @@ func CreateGCloudImpl() (string, storage.Storage) {
 }
 
 //RemoveGCloudTestBucket remove all items in the bucket and it's corresponding bucket when complete
-
 func RemoveGCloudTestBucket(bucketName string, storageImpl storage.Storage) {
 	gcloud := (storageImpl.(*storage.GCloudStorageImpl))
 

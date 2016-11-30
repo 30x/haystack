@@ -168,7 +168,7 @@ func submitGetRequest(url string, parser func(body []byte)) (*http.Response, *se
 
 	// fmt.Printf("Response body is %s", string(responseBody))
 
-	errors := new(server.Errors)
+	var errors *server.Errors
 
 	//only parse our org if it's a successfull response code
 	if response.StatusCode == 200 {

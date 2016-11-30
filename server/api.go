@@ -6,6 +6,7 @@ import (
 
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 
@@ -107,6 +108,42 @@ func (a *API) GetRevisions(w http.ResponseWriter, r *http.Request) {
 
 //GetBundleRevision get bundle data for the revision
 func (a *API) GetBundleRevision(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+
+	bundleName, ok := vars["bundleName"]
+
+	if !ok {
+		writeErrorResponse(http.StatusBadRequest, "You must specify a bundle name", w)
+		return
+	}
+
+	revision, ok := vars["revision"]
+
+	if !ok {
+		writeErrorResponse(http.StatusBadRequest, "You must specify a revision", w)
+		return
+	}
+
+	dataReader, err := a.storage.GetBundle(bundleName, revision)
+
+	if err == storage.ErrRevisionNotExist {
+		writeErrorResponse(http.StatusNotFound, fmt.Sprintf("Could not find bundle with name '%s' and revision '%s'", bundleName, revision), w)
+		return
+	}
+
+	if err != nil {
+		writeErrorResponse(http.StatusInternalServerError, fmt.Sprintf("Could not retrieve bundle. %s", err), w)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+
+	_, err = io.Copy(w, dataReader)
+
+	if err != nil {
+		writeErrorResponse(http.StatusInternalServerError, fmt.Sprintf("Could not retrieve bundle. %s", err), w)
+		return
+	}
 
 }
 
