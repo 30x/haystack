@@ -173,17 +173,18 @@ func (s *GCloudStorageImpl) GetRevisions(bundleID, cursor string, pageSize int) 
 
 	startValue, useCursor := decodeCursor(cursor, bundleID)
 
-	if !useCursor {
-		startValue = fmt.Sprintf("%s/revisions", bundleID)
-	}
+	fmt.Printf("Decoded cursor is '%s' and userCursor is '%t'", startValue, useCursor)
 
+	//TODO there seems to be no way to set fetch size.  Doing so at 2x our page Size would be faster as we iterate farther down the page list
 	itr := s.Bucket.Objects(s.Context, &storage.Query{
-		Prefix: startValue,
+		Prefix: fmt.Sprintf("%s/revisions", bundleID),
 	})
 
 	last := ""
 
-	for i := 0; i < pageSize; i++ {
+	cursorEncountered := false
+
+	for len(revisions) < pageSize {
 		obj, err := itr.Next()
 
 		if err != nil {
@@ -192,6 +193,14 @@ func (s *GCloudStorageImpl) GetRevisions(bundleID, cursor string, pageSize int) 
 			}
 
 			return nil, "", err
+		}
+
+		//we're to use a cursor, and this is equivalent to what was passed to us, drop it from the result set
+		if useCursor && !cursorEncountered {
+			//set our encountered flag so we no longer skip items.  Not the most efficient, but works with the api we're given
+			cursorEncountered = obj.Name == startValue
+
+			continue
 		}
 
 		last = obj.Name
@@ -256,18 +265,16 @@ func (s *GCloudStorageImpl) GetTags(bundleID, cursor string, pageSize int) ([]*T
 
 	startValue, useCursor := decodeCursor(cursor, bundleID)
 
-	if !useCursor {
-		startValue = fmt.Sprintf("%s/tags", bundleID)
-	}
-
 	//scan all tags for the bundleid
 	itr := s.Bucket.Objects(s.Context, &storage.Query{
-		Prefix: startValue,
+		Prefix: fmt.Sprintf("%s/tags", bundleID),
 	})
 
 	last := ""
 
-	for i := 0; i < pageSize; i++ {
+	cursorEncountered := false
+
+	for len(tags) < pageSize {
 		obj, err := itr.Next()
 
 		if err != nil {
@@ -276,6 +283,13 @@ func (s *GCloudStorageImpl) GetTags(bundleID, cursor string, pageSize int) ([]*T
 			}
 
 			return nil, "", err
+		}
+
+		//we're to use a cursor, and this is equivalent to what was passed to us, drop it from the result set
+		if useCursor && !cursorEncountered {
+			//set our encountered flag so we no longer skip items.  Not the most efficient, but works with the api we're given
+			cursorEncountered = obj.Name == startValue
+			continue
 		}
 
 		last = obj.Name
@@ -378,6 +392,8 @@ func encodeCursor(lastValue string) string {
 	if lastValue == "" {
 		return ""
 	}
+
+	// fmt.Printf("Encoding last value of '%s'", lastValue)
 	return base64.RawURLEncoding.EncodeToString([]byte(lastValue))
 }
 
@@ -395,6 +411,8 @@ func decodeCursor(cursorValue, bundleID string) (string, bool) {
 	}
 
 	stringVal := string(bytes)
+
+	// fmt.Printf("Decoded last value of '%s'", stringVal)
 
 	//not the bundle Id we expect, which is a security risk, ignore it
 	if strings.Index(stringVal, bundleID) != 0 {

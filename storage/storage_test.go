@@ -62,18 +62,18 @@ var _ = Describe("storage", func() {
 
 		})
 
-		FIt("Get Bundle Revisions", func() {
+		It("Get Bundle Revisions", func() {
 
 			//tests bundle revisions with paging
-			size := 5
+			size := uint32(5)
 
 			savedShas := make([]string, size)
 
 			bundleId := uuid.NewV1().String()
 
-			for i := 0; i < size; i++ {
+			for i := uint32(0); i < size; i++ {
 
-				fileData := generatePayloadFromInt(256)
+				fileData := generatePayloadFromInt(i)
 
 				sha, err := storageImpl.SaveBundle(bytes.NewReader(fileData), bundleId)
 
@@ -88,29 +88,33 @@ var _ = Describe("storage", func() {
 			}
 
 			//now retrieve and test
-			pageSize := 2
-			iterations := size / pageSize
-			cursor := ""
-			var err error
-			var result []string
 
-			for i := 0; i < iterations; i++ {
+			result, cursor, err := storageImpl.GetRevisions(bundleId, "", 2)
 
-				result, cursor, err = storageImpl.GetRevisions(bundleId, cursor, pageSize)
+			IsNil(err)
+			Expect(cursor).ShouldNot(BeEmpty())
 
-				IsNil(err)
+			Expect(len(result)).Should(Equal(2))
+			Expect(result[0]).Should(Equal(savedShas[0]))
+			Expect(result[1]).Should(Equal(savedShas[1]))
 
-				Expect(cursor).ShouldNot(BeEmpty())
+			result, cursor, err = storageImpl.GetRevisions(bundleId, cursor, 2)
 
-				startIndex := i * pageSize
-				length := startIndex + pageSize
+			IsNil(err)
+			Expect(cursor).ShouldNot(BeEmpty())
 
-				if length > size {
-					length = size - 1
-				}
+			Expect(len(result)).Should(Equal(2))
+			Expect(result[0]).Should(Equal(savedShas[2]))
+			Expect(result[1]).Should(Equal(savedShas[3]))
 
-				AssertStrings(savedShas, startIndex, length, result)
-			}
+			result, cursor, err = storageImpl.GetRevisions(bundleId, cursor, 2)
+
+			IsNil(err)
+
+			Expect(cursor).Should(BeEmpty())
+
+			Expect(len(result)).Should(Equal(1))
+			Expect(result[0]).Should(Equal(savedShas[4]))
 
 		})
 
@@ -194,6 +198,91 @@ var _ = Describe("storage", func() {
 			Expect(tags[2].Revision).Should(Equal(sha2))
 		})
 
+		It("List tags", func() {
+
+			//tests bundle revisions with paging
+			bundleId := uuid.NewV1().String()
+
+			data1 := CreateFakeBinary(10)
+
+			sha1, err := storageImpl.SaveBundle(bytes.NewReader(data1), bundleId)
+
+			//simulates a new rev
+			IsNil(err)
+
+			data2 := CreateFakeBinary(11)
+
+			sha2, err := storageImpl.SaveBundle(bytes.NewReader(data2), bundleId)
+
+			IsNil(err)
+
+			//now create 5 tags, first 2 on sha1, second 2 on sha 2 last one on sha 1 and iterate through them
+
+			tag1 := "tag1"
+			tag2 := "tag2"
+			tag3 := "tag3"
+			tag4 := "tag4"
+			tag5 := "tag5"
+
+			err = storageImpl.CreateTag(bundleId, sha1, tag1)
+
+			IsNil(err)
+
+			err = storageImpl.CreateTag(bundleId, sha1, tag2)
+
+			IsNil(err)
+
+			err = storageImpl.CreateTag(bundleId, sha2, tag3)
+
+			IsNil(err)
+
+			err = storageImpl.CreateTag(bundleId, sha2, tag4)
+
+			IsNil(err)
+
+			err = storageImpl.CreateTag(bundleId, sha1, tag5)
+
+			IsNil(err)
+
+			result, cursor, err := storageImpl.GetTags(bundleId, "", 2)
+
+			IsNil(err)
+			Expect(cursor).ShouldNot(BeEmpty())
+
+			Expect(len(result)).Should(Equal(2))
+
+			Expect(result[0].Name).Should(Equal(tag1))
+			Expect(result[0].Revision).Should(Equal(sha1))
+
+			Expect(result[1].Name).Should(Equal(tag2))
+			Expect(result[1].Revision).Should(Equal(sha1))
+
+			result, cursor, err = storageImpl.GetTags(bundleId, cursor, 2)
+
+			IsNil(err)
+			Expect(cursor).ShouldNot(BeEmpty())
+
+			Expect(len(result)).Should(Equal(2))
+
+			Expect(result[0].Name).Should(Equal(tag3))
+			Expect(result[0].Revision).Should(Equal(sha2))
+
+			Expect(result[1].Name).Should(Equal(tag4))
+			Expect(result[1].Revision).Should(Equal(sha2))
+
+			result, cursor, err = storageImpl.GetTags(bundleId, cursor, 2)
+
+			IsNil(err)
+
+			Expect(len(result)).Should(Equal(1))
+
+			Expect(result[0].Name).Should(Equal(tag5))
+			Expect(result[0].Revision).Should(Equal(sha1))
+
+			Expect(cursor).Should(BeEmpty())
+
+		})
+
 		It("Create tag missing revision", func() {
 
 			bundleId := "testbundle"
@@ -246,27 +335,7 @@ var _ = Describe("storage", func() {
 
 })
 
-//Check that the strings in expected match every index in sub.  It will start at expected[startIndex] = sub[0] to expected[startIndex+length] = sub[len(sub)]
-func AssertStrings(expected []string, startIndex, length int, sub []string) {
-
-	Expect(len(sub)).Should(Equal(startIndex+length), "Sub index length does not match")
-
-	subIndex := 0
-	expectedIndex := startIndex
-	endIndex := startIndex + length
-
-	Expect(startIndex+length < len(expected)).Should(BeTrue())
-
-	for expectedIndex < endIndex {
-		Expect(expected[expectedIndex]).Should(Equal(sub[subIndex]))
-
-		expectedIndex++
-		subIndex++
-	}
-
-}
-
-func generatePayloadFromInt(index int32) []byte {
+func generatePayloadFromInt(index uint32) []byte {
 	buf := new(bytes.Buffer)
 	err := binary.Write(buf, binary.LittleEndian, index)
 	IsNil(err)
