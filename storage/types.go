@@ -3,6 +3,7 @@ package storage
 import (
 	"errors"
 	"io"
+	"time"
 )
 
 //Storage the interface for bundle storage
@@ -15,7 +16,7 @@ type Storage interface {
 	GetBundle(bundleID, revision string) (io.ReadCloser, error)
 
 	//GetRevisions get the revisions for the bundle and return them.
-	GetRevisions(bundleID, cursor string, pageSize int) ([]string, string, error)
+	GetRevisions(bundleID, cursor string, pageSize int) ([]*Revision, string, error)
 
 	//CreateTag create a tag for the bundle id
 	CreateTag(bundleID, revision, tag string) error
@@ -42,4 +43,10 @@ var (
 type Tag struct {
 	Revision string
 	Name     string
+}
+
+//Revision when a revision is created
+type Revision struct {
+	Revision string
+	Created  time.Time
 }

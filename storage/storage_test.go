@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"io/ioutil"
+	"time"
 
 	"github.com/30x/haystack/storage"
 	. "github.com/30x/haystack/test"
@@ -71,6 +72,8 @@ var _ = Describe("storage", func() {
 
 			bundleId := uuid.NewV1().String()
 
+			writeStarted := time.Now()
+
 			for i := uint32(0); i < size; i++ {
 
 				fileData := generatePayloadFromInt(i)
@@ -95,8 +98,12 @@ var _ = Describe("storage", func() {
 			Expect(cursor).ShouldNot(BeEmpty())
 
 			Expect(len(result)).Should(Equal(2))
-			Expect(result[0]).Should(Equal(savedShas[0]))
-			Expect(result[1]).Should(Equal(savedShas[1]))
+
+			Expect(result[0].Revision).Should(Equal(savedShas[0]))
+			Expect(writeStarted.Before(result[0].Created)).Should(BeTrue())
+
+			Expect(result[1].Revision).Should(Equal(savedShas[1]))
+			Expect(writeStarted.Before(result[1].Created)).Should(BeTrue())
 
 			result, cursor, err = storageImpl.GetRevisions(bundleId, cursor, 2)
 
@@ -104,8 +111,11 @@ var _ = Describe("storage", func() {
 			Expect(cursor).ShouldNot(BeEmpty())
 
 			Expect(len(result)).Should(Equal(2))
-			Expect(result[0]).Should(Equal(savedShas[2]))
-			Expect(result[1]).Should(Equal(savedShas[3]))
+			Expect(result[0].Revision).Should(Equal(savedShas[2]))
+			Expect(writeStarted.Before(result[0].Created)).Should(BeTrue())
+
+			Expect(result[1].Revision).Should(Equal(savedShas[3]))
+			Expect(writeStarted.Before(result[1].Created)).Should(BeTrue())
 
 			result, cursor, err = storageImpl.GetRevisions(bundleId, cursor, 2)
 
@@ -114,7 +124,9 @@ var _ = Describe("storage", func() {
 			Expect(cursor).Should(BeEmpty())
 
 			Expect(len(result)).Should(Equal(1))
-			Expect(result[0]).Should(Equal(savedShas[4]))
+
+			Expect(result[0].Revision).Should(Equal(savedShas[4]))
+			Expect(writeStarted.Before(result[0].Created)).Should(BeTrue())
 
 		})
 

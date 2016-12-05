@@ -165,9 +165,9 @@ func (s *GCloudStorageImpl) GetBundle(bundleID, sha512 string) (io.ReadCloser, e
 }
 
 //GetRevisions get the revisions for the bundle and return them.
-func (s *GCloudStorageImpl) GetRevisions(bundleID, cursor string, pageSize int) ([]string, string, error) {
+func (s *GCloudStorageImpl) GetRevisions(bundleID, cursor string, pageSize int) ([]*Revision, string, error) {
 
-	revisions := []string{}
+	revisions := []*Revision{}
 
 	//scan all tags for the bundleid
 
@@ -205,9 +205,11 @@ func (s *GCloudStorageImpl) GetRevisions(bundleID, cursor string, pageSize int) 
 
 		last = obj.Name
 
-		parts := strings.Split(obj.Name, "-")
+		revision, err := parseRevision(obj.Name)
 
-		revision := parts[len(parts)-1]
+		if err != nil {
+			return nil, "", err
+		}
 
 		revisions = append(revisions, revision)
 
@@ -381,6 +383,34 @@ func getRevisionPath(bundleID, revision string, timestamp time.Time) string {
 
 	// return fmt.Sprintf("%s/revisions/%020d-%s", bundleID, orderID, revision)
 	return fmt.Sprintf("%s/revisions/%s-%s", bundleID, orderID, revision)
+}
+
+//parseRevision parse the revision based on the written format
+func parseRevision(storedValue string) (*Revision, error) {
+	segmentIndex := strings.LastIndex(storedValue, "-")
+
+	if segmentIndex == -1 {
+		return nil, fmt.Errorf("Revision name of '%s' is not a recognized format", storedValue)
+	}
+
+	revisionSha := storedValue[segmentIndex+1:]
+
+	timePart := storedValue[:segmentIndex]
+
+	slashIndex := strings.LastIndex(timePart, "/")
+
+	dateTime := timePart[slashIndex+1:]
+
+	time, err := time.Parse(time.RFC3339Nano, dateTime)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &Revision{
+		Revision: revisionSha,
+		Created:  time,
+	}, nil
 }
 
 func getTagPath(bundleID, tag string) string {
