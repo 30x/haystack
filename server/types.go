@@ -1,5 +1,7 @@
 package server
 
+import "time"
+
 //BundleCreatedResponse the created response for the api
 type BundleCreatedResponse struct {
 	Revision string `json:"revision"`
@@ -16,14 +18,21 @@ func (e Errors) HasErrors() bool {
 
 //BundleRevisions the revisions of bundles
 type BundleRevisions struct {
+	collection
+	Revisions []*RevisionEntry `json:"revisions"`
 }
 
 //RevisionEntry the revision entry
 type RevisionEntry struct {
+	//Revision the revision of this entry
+	Revision string `json:"revision"`
+	Self     string `json:"self"`
+	//The date this revision was stored.
+	Created time.Time `json:"date"`
 }
 
 //Collection a base type for collections
-type Collection struct {
+type collection struct {
 	Self   string `json:"self"`
 	Cursor string `json:"cursor"`
 }

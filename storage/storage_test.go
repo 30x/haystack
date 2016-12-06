@@ -2,7 +2,6 @@ package storage_test
 
 import (
 	"bytes"
-	"encoding/binary"
 	"io/ioutil"
 	"time"
 
@@ -76,7 +75,7 @@ var _ = Describe("storage", func() {
 
 			for i := uint32(0); i < size; i++ {
 
-				fileData := generatePayloadFromInt(i)
+				fileData := GenerateBinaryFromInt(i)
 
 				sha, err := storageImpl.SaveBundle(bytes.NewReader(fileData), bundleId)
 
@@ -346,11 +345,3 @@ var _ = Describe("storage", func() {
 	})
 
 })
-
-func generatePayloadFromInt(index uint32) []byte {
-	buf := new(bytes.Buffer)
-	err := binary.Write(buf, binary.LittleEndian, index)
-	IsNil(err)
-
-	return buf.Bytes()
-}

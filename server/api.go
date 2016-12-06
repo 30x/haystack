@@ -10,6 +10,8 @@ import (
 	"net/http"
 	"net/url"
 
+	"strconv"
+
 	"github.com/30x/haystack/oauth2"
 	"github.com/30x/haystack/storage"
 	"github.com/gorilla/mux"
@@ -82,15 +84,12 @@ func (a *API) PostBundle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	//TODO, not sure this is the best way to render the URL.  Review the http package in more detail and figure out something better before launch
-	scheme := r.URL.Scheme
 
-	if scheme == "" {
-		scheme = "http"
-	}
+	w.WriteHeader(http.StatusCreated)
 
 	response := &BundleCreatedResponse{
 		Revision: sha,
-		Self:     fmt.Sprintf("%s://%s/api/bundles/%s/revisions/%s", scheme, r.Host, bundleName, sha),
+		Self:     createRevisionURL(r, bundleName, sha),
 	}
 
 	err = json.NewEncoder(w).Encode(response)
@@ -111,14 +110,36 @@ func (a *API) GetRevisions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, _, err := a.storage.GetRevisions(params.bundleName, "", 100)
+	cursor, pageSize, err := parsePaginationValues(r)
+
+	if err != nil {
+		writeErrorResponse(http.StatusBadRequest, err.Error(), w)
+		return
+	}
+
+	revisions, cursor, err := a.storage.GetRevisions(params.bundleName, cursor, pageSize)
 
 	if err != nil {
 		writeErrorResponse(http.StatusInternalServerError, err.Error(), w)
 		return
 	}
 
+	bundleRevisions := &BundleRevisions{}
+
+	bundleRevisions.Cursor = cursor
+
+	for _, savedRevision := range revisions {
+		newRev := &RevisionEntry{
+			Revision: savedRevision.Revision,
+			Created:  savedRevision.Created,
+			Self:     createRevisionURL(r, params.bundleName, savedRevision.Revision),
+		}
+		bundleRevisions.Revisions = append(bundleRevisions.Revisions, newRev)
+	}
+
 	//loop through and recreate the revisions response
+
+	json.NewEncoder(w).Encode(bundleRevisions)
 
 }
 
@@ -280,4 +301,44 @@ func (r *bundleRequest) Validate() Errors {
 
 	return errors
 
+}
+
+//Parses pagination values.  Returns the cursor and the page size, if specified.  If not specified a default will be used
+func parsePaginationValues(req *http.Request) (string, int, error) {
+
+	values := req.URL.Query()
+
+	cursor := ""
+
+	passedCursor := values.Get("cursor")
+
+	if passedCursor != "" {
+		cursor = passedCursor
+	}
+
+	pageSize := 100
+
+	passedPageSize := values.Get("pageSize")
+
+	if passedPageSize != "" {
+		var err error
+		pageSize, err = strconv.Atoi(passedPageSize)
+
+		if err != nil {
+			return "", 0, err
+		}
+	}
+
+	return cursor, pageSize, nil
+}
+
+func createRevisionURL(r *http.Request, bundleName, sha string) string {
+
+	scheme := r.URL.Scheme
+
+	if scheme == "" {
+		scheme = "http"
+	}
+
+	return fmt.Sprintf("%s://%s/api/bundles/%s/revisions/%s", scheme, r.Host, bundleName, sha)
 }

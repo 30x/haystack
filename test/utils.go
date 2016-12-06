@@ -1,8 +1,10 @@
 package test
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha512"
+	"encoding/binary"
 	"encoding/hex"
 	"fmt"
 	"math/rand"
@@ -37,6 +39,15 @@ func CreateFakeBinary(length int) []byte {
 	}
 
 	return byteArray
+}
+
+//GenerateBinaryFromInt generate a binary where the payload is the int value to guarantee unique sha
+func GenerateBinaryFromInt(index uint32) []byte {
+	buf := new(bytes.Buffer)
+	err := binary.Write(buf, binary.LittleEndian, index)
+	IsNil(err)
+
+	return buf.Bytes()
 }
 
 //DoSha get the sha512 sum of the bytes provided

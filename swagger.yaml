@@ -246,7 +246,7 @@ definitions:
       revision:
         type: string
         description: A list of all urls for this bundle
-      date:
+      created:
         type: string
         description: A list of all urls for this bundle
         format: date-time
