@@ -14,6 +14,9 @@ import (
 	"github.com/30x/haystack/server"
 	"github.com/30x/haystack/storage"
 	. "github.com/30x/haystack/test"
+	uuid "github.com/satori/go.uuid"
+
+	"strconv"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -27,13 +30,13 @@ var _ = Describe("server", func() {
 		It("Bundle Upload and Get", func() {
 			testPayload := CreateFakeBinary(10)
 
-			bundleName := "test"
+			bundleName := "test" + uuid.NewV1().String()
 
 			response, bundleCreatedResponse, err := uploadBundle(testServer, bundleName, bytes.NewReader(testPayload))
 
 			IsNil(err)
 
-			Expect(response.StatusCode).Should(Equal(http.StatusOK))
+			Expect(response.StatusCode).Should(Equal(http.StatusCreated))
 
 			expectedSha := DoSha(testPayload)
 
@@ -58,9 +61,9 @@ var _ = Describe("server", func() {
 
 		})
 
-		FIt("List Revisions", func() {
+		It("List Revisions", func() {
 
-			bundleName := "test"
+			bundleName := "test" + uuid.NewV1().String()
 
 			revisionCreatedResponses := []*server.BundleCreatedResponse{}
 
@@ -129,6 +132,163 @@ var _ = Describe("server", func() {
 			Expect(revisions.Revisions[0].Created).ShouldNot(BeZero())
 
 		})
+
+		It("Test Tagging", func() {
+
+			bundleName := "test" + uuid.NewV1().String()
+
+			response, bundleCreatedResponse1, err := uploadBundle(testServer, bundleName, bytes.NewReader(CreateFakeBinary(10)))
+
+			IsNil(err)
+
+			Expect(response.StatusCode).Should(Equal(http.StatusCreated))
+
+			response, bundleCreatedResponse2, err := uploadBundle(testServer, bundleName, bytes.NewReader(CreateFakeBinary(9)))
+
+			IsNil(err)
+
+			Expect(response.StatusCode).Should(Equal(http.StatusCreated))
+
+			//now create 2 tags for each revision and get them back
+
+			tag := "test1"
+
+			response, tagResponse, err := tagBundle(testServer, bundleName, bundleCreatedResponse1.Revision, tag)
+
+			IsNil(err)
+
+			Expect(response.StatusCode).Should(Equal(http.StatusCreated))
+
+			Expect(tagResponse.Tag).Should(Equal(tag))
+
+			Expect(tagResponse.Revision).Should(Equal(bundleCreatedResponse1.Revision))
+
+			expectedUrl := fmt.Sprintf("%s/api/bundles/%s/tags/%s", testServer.URL, bundleName, tag)
+
+			Expect(tagResponse.Self).Should(Equal(expectedUrl))
+
+			//now do a get on the URL, and make sure it's expected
+
+			response, tagInfo, err := getTagInfo(tagResponse.Self)
+
+			IsNil(err)
+
+			Expect(response.StatusCode).Should(Equal(200))
+
+			Expect(tagInfo.Tag).Should(Equal(tag))
+			Expect(tagInfo.Revision).Should(Equal(bundleCreatedResponse1.Revision))
+			Expect(tagInfo.Self).Should(Equal(expectedUrl))
+
+			//Tag the second rev
+			tag = "test2"
+
+			response, tagResponse, err = tagBundle(testServer, bundleName, bundleCreatedResponse2.Revision, tag)
+
+			IsNil(err)
+
+			Expect(response.StatusCode).Should(Equal(http.StatusCreated))
+
+			Expect(tagResponse.Tag).Should(Equal(tag))
+
+			Expect(tagResponse.Revision).Should(Equal(bundleCreatedResponse2.Revision))
+
+			expectedUrl = fmt.Sprintf("%s/api/bundles/%s/tags/%s", testServer.URL, bundleName, tag)
+
+			Expect(tagResponse.Self).Should(Equal(expectedUrl))
+
+			//do a get
+			response, tagInfo, err = getTagInfo(tagResponse.Self)
+
+			IsNil(err)
+
+			Expect(response.StatusCode).Should(Equal(200))
+
+			Expect(tagInfo.Tag).Should(Equal(tag))
+			Expect(tagInfo.Revision).Should(Equal(bundleCreatedResponse2.Revision))
+			Expect(tagInfo.Self).Should(Equal(expectedUrl))
+
+		})
+
+		It("Test Tag Paging", func() {
+
+			bundleName := "test" + uuid.NewV1().String()
+
+			response, bundleCreatedResponse, err := uploadBundle(testServer, bundleName, bytes.NewReader(CreateFakeBinary(10)))
+
+			IsNil(err)
+
+			//now create 2 tags for each revision and get them back
+
+			tagResponses := []*server.TagInfo{}
+
+			//create 5 tags
+			for i := 0; i < 5; i++ {
+
+				response, tagResponse, err := tagBundle(testServer, bundleName, bundleCreatedResponse.Revision, strconv.Itoa(i))
+
+				IsNil(err)
+
+				Expect(response.StatusCode).Should(Equal(http.StatusCreated))
+
+				tagResponses = append(tagResponses, tagResponse)
+			}
+
+			response, tags, err := getTags(testServer, bundleName, "", 2)
+
+			IsNil(err)
+
+			Expect(response.StatusCode).Should(Equal(200))
+
+			//check the cursor is not empty
+			Expect(tags.Cursor).ShouldNot(BeEmpty())
+			Expect(len(tags.Tags)).Should(Equal(2))
+
+			//Assert our values are what we'd expect
+			Expect(tags.Tags[0].Tag).Should(Equal(tagResponses[0].Tag))
+			Expect(tags.Tags[0].Revision).Should(Equal(tagResponses[0].Revision))
+			Expect(tags.Tags[0].Self).Should(Equal(tagResponses[0].Self))
+
+			//Tags
+			Expect(tags.Tags[1].Tag).Should(Equal(tagResponses[1].Tag))
+			Expect(tags.Tags[1].Revision).Should(Equal(tagResponses[1].Revision))
+			Expect(tags.Tags[1].Self).Should(Equal(tagResponses[1].Self))
+
+			response, tags, err = getTags(testServer, bundleName, tags.Cursor, 2)
+
+			IsNil(err)
+
+			Expect(response.StatusCode).Should(Equal(200))
+
+			//check the cursor is not empty
+			Expect(tags.Cursor).ShouldNot(BeEmpty())
+			Expect(len(tags.Tags)).Should(Equal(2))
+
+			//Assert our values are what we'd expect
+			Expect(tags.Tags[0].Tag).Should(Equal(tagResponses[2].Tag))
+			Expect(tags.Tags[0].Revision).Should(Equal(tagResponses[2].Revision))
+			Expect(tags.Tags[0].Self).Should(Equal(tagResponses[2].Self))
+
+			//Tags
+			Expect(tags.Tags[1].Tag).Should(Equal(tagResponses[3].Tag))
+			Expect(tags.Tags[1].Revision).Should(Equal(tagResponses[3].Revision))
+			Expect(tags.Tags[1].Self).Should(Equal(tagResponses[3].Self))
+
+			response, tags, err = getTags(testServer, bundleName, tags.Cursor, 2)
+
+			IsNil(err)
+
+			Expect(response.StatusCode).Should(Equal(200))
+
+			//check the cursor is not empty
+			Expect(tags.Cursor).Should(BeEmpty())
+			Expect(len(tags.Tags)).Should(Equal(1))
+
+			//Assert our values are what we'd expect
+			Expect(tags.Tags[0].Tag).Should(Equal(tagResponses[4].Tag))
+			Expect(tags.Tags[0].Revision).Should(Equal(tagResponses[4].Revision))
+			Expect(tags.Tags[0].Self).Should(Equal(tagResponses[4].Self))
+
+		})
 	}
 
 	//Set up and execute the gcloud implementation for the tests.   Other implementations will define a new context with it's own setup, and execute the tests
@@ -155,6 +315,130 @@ var _ = Describe("server", func() {
 	})
 
 })
+
+func tagBundle(testServer *httptest.Server, bundleName, revision, tag string) (*http.Response, *server.TagInfo, *server.Errors) {
+	tagPayload := server.TagCreate{
+		Revision: revision,
+		Tag:      tag,
+	}
+
+	payload, err := json.Marshal(tagPayload)
+	IsNil(err)
+
+	url := fmt.Sprintf("%s/api/bundles/%s/tags", testServer.URL, bundleName)
+
+	request, err := http.NewRequest("POST", url, bytes.NewReader(payload))
+
+	IsNil(err)
+
+	request.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{
+		Timeout: 120 * time.Second,
+	}
+
+	response, err := client.Do(request)
+
+	IsNil(err)
+
+	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusCreated {
+		errors := &server.Errors{}
+		err = json.NewDecoder(response.Body).Decode(errors)
+
+		IsNil(err)
+		return response, nil, errors
+
+	}
+
+	tagCreatedResponse := &server.TagInfo{}
+
+	err = json.NewDecoder(response.Body).Decode(tagCreatedResponse)
+
+	IsNil(err)
+
+	return response, tagCreatedResponse, nil
+
+}
+
+//getTagInfo get the tag info for the specified tag
+func getTagInfo(tagUrl string) (*http.Response, *server.TagInfo, *server.Errors) {
+
+	request, err := http.NewRequest("GET", tagUrl, nil)
+
+	IsNil(err)
+
+	request.Header.Set("Accept", "application/json")
+
+	client := &http.Client{
+		Timeout: 120 * time.Second,
+	}
+
+	response, err := client.Do(request)
+
+	IsNil(err)
+
+	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusOK {
+		errors := &server.Errors{}
+		err = json.NewDecoder(response.Body).Decode(errors)
+
+		IsNil(err)
+		return response, nil, errors
+
+	}
+
+	tagCreatedResponse := &server.TagInfo{}
+
+	err = json.NewDecoder(response.Body).Decode(tagCreatedResponse)
+
+	IsNil(err)
+
+	return response, tagCreatedResponse, nil
+
+}
+
+//getTags get the tags of the bundle
+func getTags(testServer *httptest.Server, bundleName, cursor string, pageSize int) (*http.Response, *server.TagsResponse, *server.Errors) {
+
+	tagsUrl := fmt.Sprintf("%s/api/bundles/%s/tags?cursor=%s&pageSize=%d", testServer.URL, bundleName, cursor, pageSize)
+
+	request, err := http.NewRequest("GET", tagsUrl, nil)
+
+	IsNil(err)
+
+	client := &http.Client{}
+
+	response, err := client.Do(request)
+
+	IsNil(err)
+
+	defer response.Body.Close()
+
+	// fmt.Printf("Response body is %s", string(responseBody))
+
+	//only parse our org if it's a successfull response code
+	if response.StatusCode != 200 {
+
+		errorResponse := &server.Errors{}
+
+		err := json.NewDecoder(response.Body).Decode(errorResponse)
+		IsNil(err)
+
+		return response, nil, errorResponse
+
+	}
+
+	tagsResponse := &server.TagsResponse{}
+
+	err = json.NewDecoder(response.Body).Decode(tagsResponse)
+	IsNil(err)
+
+	return response, tagsResponse, nil
+
+}
 
 //Upload a bundle and parse the response.  Either the bundleCreatedResponse will be returned, or the errors will
 func uploadBundle(testServer *httptest.Server, bundleName string, fileData io.Reader) (*http.Response, *server.BundleCreatedResponse, *server.Errors) {

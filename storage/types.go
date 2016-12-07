@@ -18,7 +18,7 @@ type Storage interface {
 	//GetRevisions get the revisions for the bundle and return them.
 	GetRevisions(bundleID, cursor string, pageSize int) ([]*Revision, string, error)
 
-	//CreateTag create a tag for the bundle id
+	//CreateTag create a tag for the bundle id. Will return ErrRevisionNotExist if the revision does not exist
 	CreateTag(bundleID, revision, tag string) error
 
 	//GetTags get the tags for the bundle. TODO, maybe make this an iterator for the return?
@@ -27,7 +27,7 @@ type Storage interface {
 	//GetRevisionForTag Get the revision of the bundle and tag.  If none is specified an error will be returned
 	GetRevisionForTag(bundleID, tag string) (string, error)
 
-	//DeleteTag a tag for the bundleId and tag.  If the tag does not exist, and error will be reteurned
+	//DeleteTag a tag for the bundleId and tag.  If the tag does not exist, a ErrTagNotExist will be reteurned
 	DeleteTag(bundleID, tag string) error
 }
 

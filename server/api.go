@@ -130,10 +130,13 @@ func (a *API) GetRevisions(w http.ResponseWriter, r *http.Request) {
 
 	for _, savedRevision := range revisions {
 		newRev := &RevisionEntry{
-			Revision: savedRevision.Revision,
-			Created:  savedRevision.Created,
-			Self:     createRevisionURL(r, params.bundleName, savedRevision.Revision),
+
+			Created: savedRevision.Created,
 		}
+
+		newRev.Revision = savedRevision.Revision
+		newRev.Self = createRevisionURL(r, params.bundleName, savedRevision.Revision)
+
 		bundleRevisions.Revisions = append(bundleRevisions.Revisions, newRev)
 	}
 

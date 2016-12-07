@@ -25,8 +25,7 @@ type BundleRevisions struct {
 //RevisionEntry the revision entry
 type RevisionEntry struct {
 	//Revision the revision of this entry
-	Revision string `json:"revision"`
-	Self     string `json:"self"`
+	BundleCreatedResponse
 	//The date this revision was stored.
 	Created time.Time `json:"date"`
 }
@@ -35,4 +34,38 @@ type RevisionEntry struct {
 type collection struct {
 	Self   string `json:"self"`
 	Cursor string `json:"cursor"`
+}
+
+//TagCreate The input payload for the tag create
+type TagCreate struct {
+	Revision string `json:"revision"`
+	Tag      string `json:"tag"`
+}
+
+//TagInfo a response of the tag creation
+type TagInfo struct {
+	TagCreate
+	Self string `json:"self"`
+}
+
+//TagsResponse the revisions of bundles
+type TagsResponse struct {
+	collection
+	Tags []*TagInfo `json:"tags"`
+}
+
+//Validate perform validation on the input
+func (t *TagCreate) Validate() Errors {
+	var errors Errors
+
+	if t.Revision == "" {
+		errors = append(errors, "You must specify a revision parammeter")
+	}
+
+	if t.Tag == "" {
+		errors = append(errors, "You must specify a tag parammeter")
+	}
+
+	return errors
+
 }

@@ -44,6 +44,7 @@ paths:
     parameters:
       - $ref: '#/parameters/bundleName'
       - $ref: '#/parameters/cursor'
+      - $ref: '#/parameters/pageSize'
     get:
       description: Get all revisions of he bundle.
       consumes:
@@ -109,7 +110,6 @@ paths:
   /bundles/{bundleName}/tags:
     parameters:
       - $ref: '#/parameters/bundleName'
-      - $ref: '#/parameters/cursor'
     post:
       parameters:
         - name: _
@@ -139,6 +139,9 @@ paths:
           schema:
             $ref:  "#/definitions/Errors"
     get:
+      parameters:
+        - $ref: '#/parameters/cursor'
+        - $ref: '#/parameters/pageSize'
       description: Get all tags for the bundle
       produces:
         - application/json
@@ -268,9 +271,6 @@ definitions:
       revision:
         type: string
         description: The revision in the bundle to set in the tag
-      bundleUrl:
-        type: string
-        description: The url of the bundle
   TagCreate:
     properties:
       tag:
@@ -310,3 +310,9 @@ parameters:
     required: false
     description: The cursor used to
     type: string
+  pageSize:
+    name: pageSize
+    in: query
+    required: false
+    description: The number of results to return in the page
+    type: integer
