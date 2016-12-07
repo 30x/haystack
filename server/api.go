@@ -183,21 +183,204 @@ func (a *API) GetBundleRevision(w http.ResponseWriter, r *http.Request) {
 //CreateTag delete the bundle revision
 func (a *API) CreateTag(w http.ResponseWriter, r *http.Request) {
 
+	bundleRequest := parseBundleRequest(r)
+
+	errors := bundleRequest.Validate()
+
+	if errors.HasErrors() {
+		writeErrorResponses(http.StatusBadRequest, errors, w)
+		return
+	}
+
+	defer r.Body.Close()
+
+	tagCreate := &TagCreate{}
+
+	err := json.NewDecoder(r.Body).Decode(tagCreate)
+
+	//can't parse the json
+	if err != nil {
+		writeErrorResponse(http.StatusBadRequest, fmt.Sprintf("Could not parse json. %s", err), w)
+		return
+	}
+
+	//valid json, but not what we expect
+	errors = tagCreate.Validate()
+
+	if errors.HasErrors() {
+		writeErrorResponses(http.StatusBadRequest, errors, w)
+		return
+	}
+
+	//create the tags
+	err = a.storage.CreateTag(bundleRequest.bundleName, tagCreate.Revision, tagCreate.Tag)
+
+	if err != nil {
+		if err == storage.ErrRevisionNotExist {
+			writeErrorResponse(http.StatusBadRequest, fmt.Sprintf("Revision %s does not exist for bundle %s", tagCreate.Revision, bundleRequest.bundleName), w)
+			return
+		}
+
+		writeErrorResponse(http.StatusInternalServerError, err.Error(), w)
+		return
+	}
+
+	tagInfo := &TagInfo{
+		Self: createTagURL(r, bundleRequest.bundleName, tagCreate.Tag),
+	}
+
+	tagInfo.Revision = tagCreate.Revision
+	tagInfo.Tag = tagCreate.Tag
+
+	w.WriteHeader(http.StatusCreated)
+
+	err = json.NewEncoder(w).Encode(tagInfo)
+
+	if err != nil {
+		writeErrorResponse(http.StatusInternalServerError, err.Error(), w)
+	}
+
 }
 
 //GetTags delete the bundle revision
 func (a *API) GetTags(w http.ResponseWriter, r *http.Request) {
+	params := parseBundleRequest(r)
 
+	errs := params.Validate()
+
+	if errs.HasErrors() {
+		writeErrorResponses(http.StatusBadRequest, errs, w)
+		return
+	}
+
+	cursor, pageSize, err := parsePaginationValues(r)
+
+	if err != nil {
+		writeErrorResponse(http.StatusBadRequest, err.Error(), w)
+		return
+	}
+
+	tags, cursor, err := a.storage.GetTags(params.bundleName, cursor, pageSize)
+
+	if err != nil {
+		writeErrorResponse(http.StatusInternalServerError, err.Error(), w)
+		return
+	}
+
+	tagsResponse := &TagsResponse{}
+
+	tagsResponse.Cursor = cursor
+
+	for _, savedTag := range tags {
+		tagInfo := &TagInfo{
+			Self: createTagURL(r, params.bundleName, savedTag.Name),
+		}
+
+		tagInfo.Revision = savedTag.Revision
+		tagInfo.Tag = savedTag.Name
+
+		tagsResponse.Tags = append(tagsResponse.Tags, tagInfo)
+	}
+
+	//loop through and recreate the revisions response
+
+	json.NewEncoder(w).Encode(tagsResponse)
 }
 
 //GetTag delete the bundle revision
 func (a *API) GetTag(w http.ResponseWriter, r *http.Request) {
+	tagRequest := parseTagRequest(r)
+
+	errors := tagRequest.Validate()
+
+	if errors.HasErrors() {
+		writeErrorResponses(http.StatusBadRequest, errors, w)
+		return
+	}
+
+	rev, err := a.storage.GetRevisionForTag(tagRequest.bundleName, tagRequest.tag)
+
+	if err != nil {
+		if err == storage.ErrTagNotExist {
+			writeErrorResponse(http.StatusNotFound, fmt.Sprintf("Could not find bundle with name '%s' and tag '%s'", tagRequest.bundleName, tagRequest.tag), w)
+			return
+		}
+
+		writeErrorResponse(http.StatusInternalServerError, err.Error(), w)
+		return
+	}
+
+	//valid, return it
+	tagInfo := &TagInfo{
+		Self: createTagURL(r, tagRequest.bundleName, tagRequest.tag),
+	}
+
+	tagInfo.Revision = rev
+	tagInfo.Tag = tagRequest.tag
+
+	w.WriteHeader(http.StatusOK)
+
+	err = json.NewEncoder(w).Encode(tagInfo)
+
+	if err != nil {
+		writeErrorResponse(http.StatusInternalServerError, err.Error(), w)
+	}
 
 }
 
 //DeleteTag delete the bundle revision
 func (a *API) DeleteTag(w http.ResponseWriter, r *http.Request) {
 
+	tagRequest := parseTagRequest(r)
+
+	errors := tagRequest.Validate()
+
+	if errors.HasErrors() {
+		writeErrorResponses(http.StatusBadRequest, errors, w)
+		return
+	}
+
+	//now delete it
+	rev, err := a.storage.GetRevisionForTag(tagRequest.bundleName, tagRequest.tag)
+
+	if err != nil {
+		if err == storage.ErrTagNotExist {
+			writeErrorResponse(http.StatusNotFound, fmt.Sprintf("Could not find bundle with name '%s' and tag '%s'", tagRequest.bundleName, tagRequest.tag), w)
+			return
+		}
+
+		writeErrorResponse(http.StatusInternalServerError, err.Error(), w)
+		return
+	}
+
+	//now delete it
+	err = a.storage.DeleteTag(tagRequest.bundleName, tagRequest.tag)
+
+	if err != nil {
+		if err == storage.ErrTagNotExist {
+			writeErrorResponse(http.StatusNotFound, fmt.Sprintf("Could not find bundle with name '%s' and tag '%s'", tagRequest.bundleName, tagRequest.tag), w)
+			return
+		}
+
+		writeErrorResponse(http.StatusInternalServerError, err.Error(), w)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+
+	//valid, return it
+	tagInfo := &TagInfo{
+		Self: createTagURL(r, tagRequest.bundleName, tagRequest.tag),
+	}
+
+	tagInfo.Revision = rev
+	tagInfo.Tag = tagRequest.tag
+
+	err = json.NewEncoder(w).Encode(tagInfo)
+
+	if err != nil {
+		writeErrorResponse(http.StatusInternalServerError, err.Error(), w)
+	}
 }
 
 //The API instance with the storage pointer
@@ -260,7 +443,7 @@ func parseRevisionRequest(r *http.Request) *revisionRequest {
 
 func (r *revisionRequest) Validate() Errors {
 
-	errors := Errors{}
+	var errors Errors
 
 	if r.bundleName == "" {
 		errors = append(errors, "You must specify a bundle name")
@@ -296,7 +479,7 @@ func parseBundleRequest(r *http.Request) *bundleRequest {
 
 func (r *bundleRequest) Validate() Errors {
 
-	errors := Errors{}
+	var errors Errors
 
 	if r.bundleName == "" {
 		errors = append(errors, "You must specify a bundle name")
@@ -344,4 +527,58 @@ func createRevisionURL(r *http.Request, bundleName, sha string) string {
 	}
 
 	return fmt.Sprintf("%s://%s/api/bundles/%s/revisions/%s", scheme, r.Host, bundleName, sha)
+}
+
+func createTagURL(r *http.Request, bundleName, tag string) string {
+
+	scheme := r.URL.Scheme
+
+	if scheme == "" {
+		scheme = "http"
+	}
+
+	return fmt.Sprintf("%s://%s/api/bundles/%s/tags/%s", scheme, r.Host, bundleName, tag)
+}
+
+//a request that required tag and bundle name in the url
+type tagRequest struct {
+	bundleRequest
+	tag string
+}
+
+func parseTagRequest(r *http.Request) *tagRequest {
+
+	vars := mux.Vars(r)
+
+	tagRequest := &tagRequest{}
+
+	bundleName, ok := vars["bundleName"]
+
+	if ok {
+		tagRequest.bundleName = bundleName
+	}
+
+	tag, ok := vars["tagName"]
+
+	if ok {
+		tagRequest.tag = tag
+	}
+
+	return tagRequest
+}
+
+func (r *tagRequest) Validate() Errors {
+
+	var errors Errors
+
+	if r.bundleName == "" {
+		errors = append(errors, "You must specify a bundle name")
+	}
+
+	if r.tag == "" {
+		errors = append(errors, "You must specify a tag")
+	}
+
+	return errors
+
 }
