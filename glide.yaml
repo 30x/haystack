@@ -3,8 +3,11 @@ import:
 - package: cloud.google.com/go/storage
   version: v0.4.0
 - package: github.com/gorilla/mux
-- package: github.com/satori/go.uuid
+- package: github.com/gorilla/handlers
+- package: github.com/spf13/viper
+- package: github.com/tylerb/graceful
 testImport:
 - package: github.com/onsi/ginkgo/ginkgo
 - package: github.com/onsi/gomega
+- package: github.com/satori/go.uuid
 
