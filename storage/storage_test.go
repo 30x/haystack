@@ -3,6 +3,7 @@ package storage_test
 import (
 	"bytes"
 	"io/ioutil"
+	"time"
 
 	"github.com/30x/haystack/storage"
 	. "github.com/30x/haystack/test"
@@ -63,37 +64,69 @@ var _ = Describe("storage", func() {
 
 		It("Get Bundle Revisions", func() {
 
-			data1 := CreateFakeBinary(100)
-			data2 := CreateFakeBinary(101)
+			//tests bundle revisions with paging
+			size := uint32(5)
+
+			savedShas := make([]string, size)
 
 			bundleId := uuid.NewV1().String()
 
-			sha1, err := storageImpl.SaveBundle(bytes.NewReader(data1), bundleId)
+			writeStarted := time.Now()
+
+			for i := uint32(0); i < size; i++ {
+
+				fileData := GenerateBinaryFromInt(i)
+
+				sha, err := storageImpl.SaveBundle(bytes.NewReader(fileData), bundleId)
+
+				IsNil(err)
+
+				expectedSha := DoSha(fileData)
+
+				Expect(sha).Should(Equal(expectedSha))
+
+				savedShas[i] = sha
+
+			}
+
+			//now retrieve and test
+
+			result, cursor, err := storageImpl.GetRevisions(bundleId, "", 2)
 
 			IsNil(err)
-
-			expectedSha := DoSha(data1)
-
-			Expect(sha1).Should(Equal(expectedSha))
-
-			sha2, err := storageImpl.SaveBundle(bytes.NewReader(data2), bundleId)
-
-			IsNil(err)
-
-			expectedSha = DoSha(data2)
-
-			Expect(sha2).Should(Equal(expectedSha))
-
-			//now retrieve it
-
-			result, err := storageImpl.GetRevisions(bundleId)
-
-			IsNil(err)
+			Expect(cursor).ShouldNot(BeEmpty())
 
 			Expect(len(result)).Should(Equal(2))
 
-			Expect(result[0]).Should(Equal(sha1))
-			Expect(result[1]).Should(Equal(sha2))
+			Expect(result[0].Revision).Should(Equal(savedShas[0]))
+			Expect(writeStarted.Before(result[0].Created)).Should(BeTrue())
+
+			Expect(result[1].Revision).Should(Equal(savedShas[1]))
+			Expect(writeStarted.Before(result[1].Created)).Should(BeTrue())
+
+			result, cursor, err = storageImpl.GetRevisions(bundleId, cursor, 2)
+
+			IsNil(err)
+			Expect(cursor).ShouldNot(BeEmpty())
+
+			Expect(len(result)).Should(Equal(2))
+			Expect(result[0].Revision).Should(Equal(savedShas[2]))
+			Expect(writeStarted.Before(result[0].Created)).Should(BeTrue())
+
+			Expect(result[1].Revision).Should(Equal(savedShas[3]))
+			Expect(writeStarted.Before(result[1].Created)).Should(BeTrue())
+
+			result, cursor, err = storageImpl.GetRevisions(bundleId, cursor, 2)
+
+			IsNil(err)
+
+			Expect(cursor).Should(BeEmpty())
+
+			Expect(len(result)).Should(Equal(1))
+
+			Expect(result[0].Revision).Should(Equal(savedShas[4]))
+			Expect(writeStarted.Before(result[0].Created)).Should(BeTrue())
+
 		})
 
 		It("Missing bundle Get", func() {
@@ -160,7 +193,7 @@ var _ = Describe("storage", func() {
 
 			Expect(revision).Should(Equal(sha2))
 
-			tags, err := storageImpl.GetTags(bundleId)
+			tags, _, err := storageImpl.GetTags(bundleId, "", 100)
 
 			IsNil(err)
 
@@ -174,6 +207,91 @@ var _ = Describe("storage", func() {
 
 			Expect(tags[2].Name).Should(Equal(thirdTag))
 			Expect(tags[2].Revision).Should(Equal(sha2))
+		})
+
+		It("List tags", func() {
+
+			//tests bundle revisions with paging
+			bundleId := uuid.NewV1().String()
+
+			data1 := CreateFakeBinary(10)
+
+			sha1, err := storageImpl.SaveBundle(bytes.NewReader(data1), bundleId)
+
+			//simulates a new rev
+			IsNil(err)
+
+			data2 := CreateFakeBinary(11)
+
+			sha2, err := storageImpl.SaveBundle(bytes.NewReader(data2), bundleId)
+
+			IsNil(err)
+
+			//now create 5 tags, first 2 on sha1, second 2 on sha 2 last one on sha 1 and iterate through them
+
+			tag1 := "tag1"
+			tag2 := "tag2"
+			tag3 := "tag3"
+			tag4 := "tag4"
+			tag5 := "tag5"
+
+			err = storageImpl.CreateTag(bundleId, sha1, tag1)
+
+			IsNil(err)
+
+			err = storageImpl.CreateTag(bundleId, sha1, tag2)
+
+			IsNil(err)
+
+			err = storageImpl.CreateTag(bundleId, sha2, tag3)
+
+			IsNil(err)
+
+			err = storageImpl.CreateTag(bundleId, sha2, tag4)
+
+			IsNil(err)
+
+			err = storageImpl.CreateTag(bundleId, sha1, tag5)
+
+			IsNil(err)
+
+			result, cursor, err := storageImpl.GetTags(bundleId, "", 2)
+
+			IsNil(err)
+			Expect(cursor).ShouldNot(BeEmpty())
+
+			Expect(len(result)).Should(Equal(2))
+
+			Expect(result[0].Name).Should(Equal(tag1))
+			Expect(result[0].Revision).Should(Equal(sha1))
+
+			Expect(result[1].Name).Should(Equal(tag2))
+			Expect(result[1].Revision).Should(Equal(sha1))
+
+			result, cursor, err = storageImpl.GetTags(bundleId, cursor, 2)
+
+			IsNil(err)
+			Expect(cursor).ShouldNot(BeEmpty())
+
+			Expect(len(result)).Should(Equal(2))
+
+			Expect(result[0].Name).Should(Equal(tag3))
+			Expect(result[0].Revision).Should(Equal(sha2))
+
+			Expect(result[1].Name).Should(Equal(tag4))
+			Expect(result[1].Revision).Should(Equal(sha2))
+
+			result, cursor, err = storageImpl.GetTags(bundleId, cursor, 2)
+
+			IsNil(err)
+
+			Expect(len(result)).Should(Equal(1))
+
+			Expect(result[0].Name).Should(Equal(tag5))
+			Expect(result[0].Revision).Should(Equal(sha1))
+
+			Expect(cursor).Should(BeEmpty())
+
 		})
 
 		It("Create tag missing revision", func() {
