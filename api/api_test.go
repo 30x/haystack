@@ -81,6 +81,9 @@ var _ = Describe("server", func() {
 				revisionCreatedResponses = append(revisionCreatedResponses, bundleCreatedResponse)
 			}
 
+			//lists are eventually consistent. https://cloud.google.com/storage/docs/consistency
+			time.Sleep(1 * time.Second)
+
 			response, revisions, errors := getRevisions(testServer, bundleName, "", 2)
 
 			IsNil(errors)
@@ -233,6 +236,9 @@ var _ = Describe("server", func() {
 				tagResponses = append(tagResponses, tagResponse)
 			}
 
+			//lists are eventually consistent. https://cloud.google.com/storage/docs/consistency
+			time.Sleep(1 * time.Second)
+
 			response, tags, err := getTags(testServer, bundleName, "", 2)
 
 			IsNil(err)
@@ -348,6 +354,8 @@ var _ = Describe("server", func() {
 		})
 
 		AfterSuite(func() {
+			//wait to list works on delete
+			time.Sleep(1 * time.Second)
 			RemoveGCloudTestBucket(bucketName, storageImpl)
 		})
 

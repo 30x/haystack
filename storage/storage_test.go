@@ -89,6 +89,9 @@ var _ = Describe("storage", func() {
 
 			}
 
+			//lists are eventually consistent. https://cloud.google.com/storage/docs/consistency
+			time.Sleep(1 * time.Second)
+
 			//now retrieve and test
 
 			result, cursor, err := storageImpl.GetRevisions(bundleId, "", 2)
@@ -255,6 +258,9 @@ var _ = Describe("storage", func() {
 
 			IsNil(err)
 
+			//lists are eventually consistent. https://cloud.google.com/storage/docs/consistency
+			time.Sleep(1 * time.Second)
+
 			result, cursor, err := storageImpl.GetTags(bundleId, "", 2)
 
 			IsNil(err)
@@ -338,6 +344,9 @@ var _ = Describe("storage", func() {
 		})
 
 		AfterSuite(func() {
+			//wait to list works on delete
+			time.Sleep(1 * time.Second)
+
 			RemoveGCloudTestBucket(bucketName, storageImpl)
 		})
 
