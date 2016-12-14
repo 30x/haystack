@@ -16,9 +16,7 @@ compile-linux:
 
 build-image:
 #Copy over the required credentials file
-	mkdir -p .config/gcloud
-	#Copy the user's creds over to this project for running the tests
-	cp ~/.config/gcloud/application_default_credentials.json .config/gcloud/application_default_credentials.json
+	sh tools/createdockerfiles.sh
 	#Run the docker build
 	docker build -t thirtyx/haystack .
 
