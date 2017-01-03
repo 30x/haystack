@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/30x/haystack/api"
+	"github.com/30x/haystack/httputil"
 	"github.com/30x/haystack/storage"
 	. "github.com/30x/haystack/test"
 	uuid "github.com/satori/go.uuid"
@@ -364,7 +365,7 @@ var _ = Describe("server", func() {
 
 })
 
-func tagBundle(testServer *httptest.Server, bundleName, revision, tag string) (*http.Response, *api.TagInfo, *api.Errors) {
+func tagBundle(testServer *httptest.Server, bundleName, revision, tag string) (*http.Response, *api.TagInfo, *httputil.Errors) {
 	tagPayload := api.TagCreate{
 		Revision: revision,
 		Tag:      tag,
@@ -392,7 +393,7 @@ func tagBundle(testServer *httptest.Server, bundleName, revision, tag string) (*
 	defer response.Body.Close()
 
 	if response.StatusCode != http.StatusCreated {
-		errors := &api.Errors{}
+		errors := &httputil.Errors{}
 		err = json.NewDecoder(response.Body).Decode(errors)
 
 		IsNil(err)
@@ -411,18 +412,18 @@ func tagBundle(testServer *httptest.Server, bundleName, revision, tag string) (*
 }
 
 //getTagInfo get the tag info for the specified tag
-func getTagInfo(tagUrl string) (*http.Response, *api.TagInfo, *api.Errors) {
+func getTagInfo(tagUrl string) (*http.Response, *api.TagInfo, *httputil.Errors) {
 
 	return performTagOp("GET", tagUrl)
 
 }
 
 //getTagInfo get the tag info for the specified tag
-func deleteTag(tagUrl string) (*http.Response, *api.TagInfo, *api.Errors) {
+func deleteTag(tagUrl string) (*http.Response, *api.TagInfo, *httputil.Errors) {
 	return performTagOp("DELETE", tagUrl)
 }
 
-func performTagOp(httpMethod, tagURL string) (*http.Response, *api.TagInfo, *api.Errors) {
+func performTagOp(httpMethod, tagURL string) (*http.Response, *api.TagInfo, *httputil.Errors) {
 	request, err := http.NewRequest(httpMethod, tagURL, nil)
 
 	IsNil(err)
@@ -440,7 +441,7 @@ func performTagOp(httpMethod, tagURL string) (*http.Response, *api.TagInfo, *api
 	defer response.Body.Close()
 
 	if response.StatusCode != http.StatusOK {
-		errors := &api.Errors{}
+		errors := &httputil.Errors{}
 		err = json.NewDecoder(response.Body).Decode(errors)
 
 		IsNil(err)
@@ -458,7 +459,7 @@ func performTagOp(httpMethod, tagURL string) (*http.Response, *api.TagInfo, *api
 }
 
 //getTags get the tags of the bundle
-func getTags(testServer *httptest.Server, bundleName, cursor string, pageSize int) (*http.Response, *api.TagsResponse, *api.Errors) {
+func getTags(testServer *httptest.Server, bundleName, cursor string, pageSize int) (*http.Response, *api.TagsResponse, *httputil.Errors) {
 
 	tagsUrl := fmt.Sprintf("%s/api/bundles/%s/tags?cursor=%s&pageSize=%d", testServer.URL, bundleName, cursor, pageSize)
 
@@ -479,7 +480,7 @@ func getTags(testServer *httptest.Server, bundleName, cursor string, pageSize in
 	//only parse our org if it's a successfull response code
 	if response.StatusCode != 200 {
 
-		errorResponse := &api.Errors{}
+		errorResponse := &httputil.Errors{}
 
 		err := json.NewDecoder(response.Body).Decode(errorResponse)
 		IsNil(err)
@@ -498,7 +499,7 @@ func getTags(testServer *httptest.Server, bundleName, cursor string, pageSize in
 }
 
 //Upload a bundle and parse the response.  Either the bundleCreatedResponse will be returned, or the errors will
-func uploadBundle(testServer *httptest.Server, bundleName string, fileData io.Reader) (*http.Response, *api.BundleCreatedResponse, *api.Errors) {
+func uploadBundle(testServer *httptest.Server, bundleName string, fileData io.Reader) (*http.Response, *api.BundleCreatedResponse, *httputil.Errors) {
 
 	url := testServer.URL + "/api/bundles"
 
@@ -540,7 +541,7 @@ func uploadBundle(testServer *httptest.Server, bundleName string, fileData io.Re
 	defer response.Body.Close()
 
 	if response.StatusCode != http.StatusCreated {
-		errors := &api.Errors{}
+		errors := &httputil.Errors{}
 		err = json.NewDecoder(response.Body).Decode(errors)
 
 		IsNil(err)
@@ -559,7 +560,7 @@ func uploadBundle(testServer *httptest.Server, bundleName string, fileData io.Re
 }
 
 //submit the get request.  If the response is 200, then the parser will be invoked.  Otherwise errors will be parsed
-func getBundle(url string, parser func(body []byte)) (*http.Response, *api.Errors) {
+func getBundle(url string, parser func(body []byte)) (*http.Response, *httputil.Errors) {
 
 	request, err := http.NewRequest("GET", url, nil)
 
@@ -577,7 +578,7 @@ func getBundle(url string, parser func(body []byte)) (*http.Response, *api.Error
 
 	// fmt.Printf("Response body is %s", string(responseBody))
 
-	var errors *api.Errors
+	var errors *httputil.Errors
 
 	//only parse our org if it's a successfull response code
 	if response.StatusCode == 200 {
@@ -593,7 +594,7 @@ func getBundle(url string, parser func(body []byte)) (*http.Response, *api.Error
 }
 
 //getRevisions get the revisions of the bundle
-func getRevisions(testServer *httptest.Server, bundleName, cursor string, pageSize int) (*http.Response, *api.BundleRevisions, *api.Errors) {
+func getRevisions(testServer *httptest.Server, bundleName, cursor string, pageSize int) (*http.Response, *api.BundleRevisions, *httputil.Errors) {
 
 	revisionsURL := fmt.Sprintf("%s/api/bundles/%s/revisions?cursor=%s&pageSize=%d", testServer.URL, bundleName, cursor, pageSize)
 
@@ -614,7 +615,7 @@ func getRevisions(testServer *httptest.Server, bundleName, cursor string, pageSi
 	//only parse our org if it's a successfull response code
 	if response.StatusCode != 200 {
 
-		errorResponse := &api.Errors{}
+		errorResponse := &httputil.Errors{}
 
 		err := json.NewDecoder(response.Body).Decode(errorResponse)
 		IsNil(err)
