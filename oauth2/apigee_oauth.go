@@ -66,9 +66,13 @@ func (a *apigeeOAuth) Validate(jwt jwt.JWT) error {
 
 	//now validate to the token.
 
-	keyAsText := ssoKey.Value
+	publieKey, err := crypto.ParseRSAPublicKeyFromPEM([]byte(ssoKey.Value))
 
-	return jwt.Validate(keyAsText, crypto.SigningMethodES256, nil)
+	if err != nil {
+		return err
+	}
+
+	return jwt.Validate(publieKey, crypto.SigningMethodRS256)
 }
 
 //CreateApigeeOAuth create an apigee instance of the oauth service
