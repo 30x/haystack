@@ -1,5 +1,5 @@
-hash: 8a44698435a45be0db4187e94db43f4a43300ef068387887d2c2e6535f3c4146
-updated: 2016-12-07T15:26:50.767695732-07:00
+hash: 308dcdfa23b8fd35baef0d53bb0c2022088ff8acfe02f4a05ea57832ad59082b
+updated: 2017-01-03T11:18:10.88537397-07:00
 imports:
 - name: cloud.google.com/go
   version: 8c2dc6124f184bbfc2f13949476cb98e12bda2bb
@@ -57,6 +57,8 @@ imports:
   version: ce7be745f09fe4ff89af8e3ea744e1deabf20ee3
 - name: github.com/satori/go.uuid
   version: b061729afc07e77a8aa4fad0a2fd840958f1942a
+- name: github.com/SermoDigital/jose
+  version: 2bd9b81ac51d6d6134fcd4fd846bd2e7347a15f9
 - name: github.com/spf13/afero
   version: 06b7e5f50606ecd49148a01a6008942d9b669217
   subpackages:

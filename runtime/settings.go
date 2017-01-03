@@ -13,6 +13,7 @@ type Settings struct {
 	BucketName              string
 	Port                    int
 	GracefulShutdownTimeout time.Duration
+	SsoUrlKey               string
 }
 
 //MustValidate fail if we can't validate
@@ -23,6 +24,10 @@ func (s *Settings) MustValidate() {
 
 	if s.BucketName == "" {
 		dieFromMissingVar(bucketName)
+	}
+
+	if s.SsoUrlKey == "" {
+		dieFromMissingVar(ssoKeyURl)
 	}
 
 }
@@ -40,6 +45,9 @@ const bucketName = "BUCKET_NAME"
 //port The port to run on
 const port = "PORT"
 
+//the key to the sso url
+const ssoKeyURl = "SSO_KEY_URL"
+
 //LoadSettingsFromSystem load the settings from the env vars
 func LoadSettingsFromSystem() *Settings {
 	v := viper.New()
@@ -50,6 +58,7 @@ func LoadSettingsFromSystem() *Settings {
 	settings := &Settings{
 		GoogleProjectID: v.GetString(projectID),
 		BucketName:      v.GetString(bucketName),
+		SsoUrlKey:       v.GetString(ssoKeyURl),
 		Port:            v.GetInt(port),
 	}
 

@@ -15,7 +15,7 @@ func main() {
 
 	settings.MustValidate()
 
-	oAuthService := oauth2.CreateApigeeOAuth()
+	oAuthService := oauth2.CreateApigeeOAuth(settings.SsoUrlKey)
 
 	storage, err := storage.CreateGCloudStorage(settings.GoogleProjectID, settings.BucketName)
 

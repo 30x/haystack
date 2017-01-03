@@ -12,6 +12,7 @@ import (
 
 	"strconv"
 
+	"github.com/30x/haystack/httputil"
 	"github.com/30x/haystack/oauth2"
 	"github.com/30x/haystack/storage"
 	"github.com/gorilla/mux"
@@ -36,17 +37,17 @@ func CreateRoutes(storage storage.Storage, authService oauth2.OAuthService) *mux
 
 	r := mux.NewRouter().PathPrefix(basePath).Subrouter()
 
-	r.Path("/bundles").Methods("POST").HeadersRegexp("Content-Type", "multipart/form-data.*").HandlerFunc(api.PostBundle)
+	r.Path("/bundles").Methods("POST").HeadersRegexp("Content-Type", "multipart/form-data.*").Handler(authService.VerifyOAuth(http.HandlerFunc(api.PostBundle)))
 
-	r.Path("/bundles/{bundleName}/revisions").Methods("GET").HandlerFunc(api.GetRevisions)
+	r.Path("/bundles/{bundleName}/revisions").Methods("GET").Handler(authService.VerifyOAuth(http.HandlerFunc(api.GetRevisions)))
 
-	r.Path("/bundles/{bundleName}/revisions/{revision}").Methods("GET").HandlerFunc(api.GetBundleRevision)
+	r.Path("/bundles/{bundleName}/revisions/{revision}").Methods("GET").Handler(authService.VerifyOAuth(http.HandlerFunc(api.GetBundleRevision)))
 
-	r.Path("/bundles/{bundleName}/tags").Methods("POST").HandlerFunc(api.CreateTag)
-	r.Path("/bundles/{bundleName}/tags").Methods("GET").HandlerFunc(api.GetTags)
+	r.Path("/bundles/{bundleName}/tags").Methods("POST").Handler(authService.VerifyOAuth(http.HandlerFunc(api.CreateTag)))
+	r.Path("/bundles/{bundleName}/tags").Methods("GET").Handler(authService.VerifyOAuth(http.HandlerFunc(api.GetTags)))
 
-	r.Path("/bundles/{bundleName}/tags/{tagName}").Methods("GET").HandlerFunc(api.GetTag)
-	r.Path("/bundles/{bundleName}/tags/{tagName}").Methods("DELETE").HandlerFunc(api.GetTag)
+	r.Path("/bundles/{bundleName}/tags/{tagName}").Methods("GET").Handler(authService.VerifyOAuth(http.HandlerFunc(api.GetTag)))
+	r.Path("/bundles/{bundleName}/tags/{tagName}").Methods("DELETE").Handler(authService.VerifyOAuth(http.HandlerFunc(api.GetTag)))
 
 	return r
 }
@@ -56,21 +57,21 @@ func (a *API) PostBundle(w http.ResponseWriter, r *http.Request) {
 	err := r.ParseMultipartForm(maxFileSize)
 
 	if err != nil {
-		writeErrorResponse(http.StatusBadRequest, err.Error(), w)
+		httputil.WriteErrorResponse(http.StatusBadRequest, err.Error(), w)
 		return
 	}
 
 	bundleName, ok := getBundleName(r.Form)
 
 	if !ok {
-		writeErrorResponse(http.StatusBadRequest, "You must specifiy the bundleName parameter", w)
+		httputil.WriteErrorResponse(http.StatusBadRequest, "You must specifiy the bundleName parameter", w)
 		return
 	}
 
 	file, _, err := r.FormFile("bundleData")
 
 	if err != nil {
-		writeErrorResponse(http.StatusInternalServerError, fmt.Sprintf("Unable to upload file.  Make sure bundleData is present in the form with file data.  Err is %s", err), w)
+		httputil.WriteErrorResponse(http.StatusInternalServerError, fmt.Sprintf("Unable to upload file.  Make sure bundleData is present in the form with file data.  Err is %s", err), w)
 		return
 	}
 
@@ -79,7 +80,7 @@ func (a *API) PostBundle(w http.ResponseWriter, r *http.Request) {
 	sha, err := a.storage.SaveBundle(file, bundleName)
 
 	if err != nil {
-		writeErrorResponse(http.StatusInternalServerError, fmt.Sprintf("Unable to upload bundle %s", err), w)
+		httputil.WriteErrorResponse(http.StatusInternalServerError, fmt.Sprintf("Unable to upload bundle %s", err), w)
 		return
 	}
 
@@ -95,7 +96,7 @@ func (a *API) PostBundle(w http.ResponseWriter, r *http.Request) {
 	err = json.NewEncoder(w).Encode(response)
 
 	if err != nil {
-		writeErrorResponse(http.StatusInternalServerError, fmt.Sprintf("Unable to serialize response  %s", err), w)
+		httputil.WriteErrorResponse(http.StatusInternalServerError, fmt.Sprintf("Unable to serialize response  %s", err), w)
 	}
 }
 
@@ -106,21 +107,21 @@ func (a *API) GetRevisions(w http.ResponseWriter, r *http.Request) {
 	errs := params.Validate()
 
 	if errs.HasErrors() {
-		writeErrorResponses(http.StatusBadRequest, errs, w)
+		httputil.WriteErrorResponses(http.StatusBadRequest, errs, w)
 		return
 	}
 
 	cursor, pageSize, err := parsePaginationValues(r)
 
 	if err != nil {
-		writeErrorResponse(http.StatusBadRequest, err.Error(), w)
+		httputil.WriteErrorResponse(http.StatusBadRequest, err.Error(), w)
 		return
 	}
 
 	revisions, cursor, err := a.storage.GetRevisions(params.bundleName, cursor, pageSize)
 
 	if err != nil {
-		writeErrorResponse(http.StatusInternalServerError, err.Error(), w)
+		httputil.WriteErrorResponse(http.StatusInternalServerError, err.Error(), w)
 		return
 	}
 
@@ -153,19 +154,19 @@ func (a *API) GetBundleRevision(w http.ResponseWriter, r *http.Request) {
 	errs := params.Validate()
 
 	if errs.HasErrors() {
-		writeErrorResponses(http.StatusBadRequest, errs, w)
+		httputil.WriteErrorResponses(http.StatusBadRequest, errs, w)
 		return
 	}
 
 	dataReader, err := a.storage.GetBundle(params.bundleName, params.revision)
 
 	if err == storage.ErrRevisionNotExist {
-		writeErrorResponse(http.StatusNotFound, fmt.Sprintf("Could not find bundle with name '%s' and revision '%s'", params.bundleName, params.revision), w)
+		httputil.WriteErrorResponse(http.StatusNotFound, fmt.Sprintf("Could not find bundle with name '%s' and revision '%s'", params.bundleName, params.revision), w)
 		return
 	}
 
 	if err != nil {
-		writeErrorResponse(http.StatusInternalServerError, fmt.Sprintf("Could not retrieve bundle. %s", err), w)
+		httputil.WriteErrorResponse(http.StatusInternalServerError, fmt.Sprintf("Could not retrieve bundle. %s", err), w)
 		return
 	}
 
@@ -174,7 +175,7 @@ func (a *API) GetBundleRevision(w http.ResponseWriter, r *http.Request) {
 	_, err = io.Copy(w, dataReader)
 
 	if err != nil {
-		writeErrorResponse(http.StatusInternalServerError, fmt.Sprintf("Could not retrieve bundle. %s", err), w)
+		httputil.WriteErrorResponse(http.StatusInternalServerError, fmt.Sprintf("Could not retrieve bundle. %s", err), w)
 		return
 	}
 
@@ -188,7 +189,7 @@ func (a *API) CreateTag(w http.ResponseWriter, r *http.Request) {
 	errors := bundleRequest.Validate()
 
 	if errors.HasErrors() {
-		writeErrorResponses(http.StatusBadRequest, errors, w)
+		httputil.WriteErrorResponses(http.StatusBadRequest, errors, w)
 		return
 	}
 
@@ -200,7 +201,7 @@ func (a *API) CreateTag(w http.ResponseWriter, r *http.Request) {
 
 	//can't parse the json
 	if err != nil {
-		writeErrorResponse(http.StatusBadRequest, fmt.Sprintf("Could not parse json. %s", err), w)
+		httputil.WriteErrorResponse(http.StatusBadRequest, fmt.Sprintf("Could not parse json. %s", err), w)
 		return
 	}
 
@@ -208,7 +209,7 @@ func (a *API) CreateTag(w http.ResponseWriter, r *http.Request) {
 	errors = tagCreate.Validate()
 
 	if errors.HasErrors() {
-		writeErrorResponses(http.StatusBadRequest, errors, w)
+		httputil.WriteErrorResponses(http.StatusBadRequest, errors, w)
 		return
 	}
 
@@ -217,11 +218,11 @@ func (a *API) CreateTag(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		if err == storage.ErrRevisionNotExist {
-			writeErrorResponse(http.StatusBadRequest, fmt.Sprintf("Revision %s does not exist for bundle %s", tagCreate.Revision, bundleRequest.bundleName), w)
+			httputil.WriteErrorResponse(http.StatusBadRequest, fmt.Sprintf("Revision %s does not exist for bundle %s", tagCreate.Revision, bundleRequest.bundleName), w)
 			return
 		}
 
-		writeErrorResponse(http.StatusInternalServerError, err.Error(), w)
+		httputil.WriteErrorResponse(http.StatusInternalServerError, err.Error(), w)
 		return
 	}
 
@@ -237,7 +238,7 @@ func (a *API) CreateTag(w http.ResponseWriter, r *http.Request) {
 	err = json.NewEncoder(w).Encode(tagInfo)
 
 	if err != nil {
-		writeErrorResponse(http.StatusInternalServerError, err.Error(), w)
+		httputil.WriteErrorResponse(http.StatusInternalServerError, err.Error(), w)
 	}
 
 }
@@ -249,21 +250,21 @@ func (a *API) GetTags(w http.ResponseWriter, r *http.Request) {
 	errs := params.Validate()
 
 	if errs.HasErrors() {
-		writeErrorResponses(http.StatusBadRequest, errs, w)
+		httputil.WriteErrorResponses(http.StatusBadRequest, errs, w)
 		return
 	}
 
 	cursor, pageSize, err := parsePaginationValues(r)
 
 	if err != nil {
-		writeErrorResponse(http.StatusBadRequest, err.Error(), w)
+		httputil.WriteErrorResponse(http.StatusBadRequest, err.Error(), w)
 		return
 	}
 
 	tags, cursor, err := a.storage.GetTags(params.bundleName, cursor, pageSize)
 
 	if err != nil {
-		writeErrorResponse(http.StatusInternalServerError, err.Error(), w)
+		httputil.WriteErrorResponse(http.StatusInternalServerError, err.Error(), w)
 		return
 	}
 
@@ -294,7 +295,7 @@ func (a *API) GetTag(w http.ResponseWriter, r *http.Request) {
 	errors := tagRequest.Validate()
 
 	if errors.HasErrors() {
-		writeErrorResponses(http.StatusBadRequest, errors, w)
+		httputil.WriteErrorResponses(http.StatusBadRequest, errors, w)
 		return
 	}
 
@@ -302,11 +303,11 @@ func (a *API) GetTag(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		if err == storage.ErrTagNotExist {
-			writeErrorResponse(http.StatusNotFound, fmt.Sprintf("Could not find bundle with name '%s' and tag '%s'", tagRequest.bundleName, tagRequest.tag), w)
+			httputil.WriteErrorResponse(http.StatusNotFound, fmt.Sprintf("Could not find bundle with name '%s' and tag '%s'", tagRequest.bundleName, tagRequest.tag), w)
 			return
 		}
 
-		writeErrorResponse(http.StatusInternalServerError, err.Error(), w)
+		httputil.WriteErrorResponse(http.StatusInternalServerError, err.Error(), w)
 		return
 	}
 
@@ -323,7 +324,7 @@ func (a *API) GetTag(w http.ResponseWriter, r *http.Request) {
 	err = json.NewEncoder(w).Encode(tagInfo)
 
 	if err != nil {
-		writeErrorResponse(http.StatusInternalServerError, err.Error(), w)
+		httputil.WriteErrorResponse(http.StatusInternalServerError, err.Error(), w)
 	}
 
 }
@@ -336,7 +337,7 @@ func (a *API) DeleteTag(w http.ResponseWriter, r *http.Request) {
 	errors := tagRequest.Validate()
 
 	if errors.HasErrors() {
-		writeErrorResponses(http.StatusBadRequest, errors, w)
+		httputil.WriteErrorResponses(http.StatusBadRequest, errors, w)
 		return
 	}
 
@@ -345,11 +346,11 @@ func (a *API) DeleteTag(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		if err == storage.ErrTagNotExist {
-			writeErrorResponse(http.StatusNotFound, fmt.Sprintf("Could not find bundle with name '%s' and tag '%s'", tagRequest.bundleName, tagRequest.tag), w)
+			httputil.WriteErrorResponse(http.StatusNotFound, fmt.Sprintf("Could not find bundle with name '%s' and tag '%s'", tagRequest.bundleName, tagRequest.tag), w)
 			return
 		}
 
-		writeErrorResponse(http.StatusInternalServerError, err.Error(), w)
+		httputil.WriteErrorResponse(http.StatusInternalServerError, err.Error(), w)
 		return
 	}
 
@@ -358,11 +359,11 @@ func (a *API) DeleteTag(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		if err == storage.ErrTagNotExist {
-			writeErrorResponse(http.StatusNotFound, fmt.Sprintf("Could not find bundle with name '%s' and tag '%s'", tagRequest.bundleName, tagRequest.tag), w)
+			httputil.WriteErrorResponse(http.StatusNotFound, fmt.Sprintf("Could not find bundle with name '%s' and tag '%s'", tagRequest.bundleName, tagRequest.tag), w)
 			return
 		}
 
-		writeErrorResponse(http.StatusInternalServerError, err.Error(), w)
+		httputil.WriteErrorResponse(http.StatusInternalServerError, err.Error(), w)
 		return
 	}
 
@@ -379,7 +380,7 @@ func (a *API) DeleteTag(w http.ResponseWriter, r *http.Request) {
 	err = json.NewEncoder(w).Encode(tagInfo)
 
 	if err != nil {
-		writeErrorResponse(http.StatusInternalServerError, err.Error(), w)
+		httputil.WriteErrorResponse(http.StatusInternalServerError, err.Error(), w)
 	}
 }
 
@@ -387,20 +388,6 @@ func (a *API) DeleteTag(w http.ResponseWriter, r *http.Request) {
 type API struct {
 	storage     storage.Storage
 	authService oauth2.OAuthService
-}
-
-//write a non 200 error response
-func writeErrorResponse(statusCode int, message string, w http.ResponseWriter) {
-
-	errors := Errors{message}
-
-	writeErrorResponses(statusCode, errors, w)
-}
-
-func writeErrorResponses(statusCode int, errors Errors, w http.ResponseWriter) {
-	w.WriteHeader(statusCode)
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(errors)
 }
 
 func getBundleName(formValues url.Values) (string, bool) {
@@ -441,9 +428,9 @@ func parseRevisionRequest(r *http.Request) *revisionRequest {
 	return revisionRequest
 }
 
-func (r *revisionRequest) Validate() Errors {
+func (r *revisionRequest) Validate() httputil.Errors {
 
-	var errors Errors
+	var errors httputil.Errors
 
 	if r.bundleName == "" {
 		errors = append(errors, "You must specify a bundle name")
@@ -477,9 +464,9 @@ func parseBundleRequest(r *http.Request) *bundleRequest {
 	return bundleRequest
 }
 
-func (r *bundleRequest) Validate() Errors {
+func (r *bundleRequest) Validate() httputil.Errors {
 
-	var errors Errors
+	var errors httputil.Errors
 
 	if r.bundleName == "" {
 		errors = append(errors, "You must specify a bundle name")
@@ -567,9 +554,9 @@ func parseTagRequest(r *http.Request) *tagRequest {
 	return tagRequest
 }
 
-func (r *tagRequest) Validate() Errors {
+func (r *tagRequest) Validate() httputil.Errors {
 
-	var errors Errors
+	var errors httputil.Errors
 
 	if r.bundleName == "" {
 		errors = append(errors, "You must specify a bundle name")
