@@ -6,6 +6,7 @@ import:
 - package: github.com/gorilla/handlers
 - package: github.com/spf13/viper
 - package: github.com/tylerb/graceful
+- package: github.com/SermoDigital/jose
 testImport:
 - package: github.com/onsi/ginkgo/ginkgo
 - package: github.com/onsi/gomega

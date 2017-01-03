@@ -1,19 +1,15 @@
 package api
 
-import "time"
+import (
+	"time"
+
+	"github.com/30x/haystack/httputil"
+)
 
 //BundleCreatedResponse the created response for the api
 type BundleCreatedResponse struct {
 	Revision string `json:"revision"`
 	Self     string `json:"self"`
-}
-
-//Errors to return
-type Errors []string
-
-//HasErrors return true if there are errors
-func (e Errors) HasErrors() bool {
-	return len(e) > 0
 }
 
 //BundleRevisions the revisions of bundles
@@ -55,8 +51,8 @@ type TagsResponse struct {
 }
 
 //Validate perform validation on the input
-func (t *TagCreate) Validate() Errors {
-	var errors Errors
+func (t *TagCreate) Validate() httputil.Errors {
+	var errors httputil.Errors
 
 	if t.Revision == "" {
 		errors = append(errors, "You must specify a revision parammeter")
