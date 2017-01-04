@@ -107,6 +107,8 @@ paths:
           description: Error
           schema:
             $ref:  "#/definitions/Errors"
+
+            #TODO add a get latest revision
   /bundles/{bundleName}/tags:
     parameters:
       - $ref: '#/parameters/bundleName'

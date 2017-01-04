@@ -86,6 +86,7 @@ func (a *API) PostBundle(w http.ResponseWriter, r *http.Request) {
 
 	//TODO, not sure this is the best way to render the URL.  Review the http package in more detail and figure out something better before launch
 
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 
 	response := &BundleCreatedResponse{
@@ -142,7 +143,7 @@ func (a *API) GetRevisions(w http.ResponseWriter, r *http.Request) {
 	}
 
 	//loop through and recreate the revisions response
-
+	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(bundleRevisions)
 
 }
@@ -172,6 +173,7 @@ func (a *API) GetBundleRevision(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusOK)
 
+	w.Header().Set("Content-Type", "application/octet-stream")
 	_, err = io.Copy(w, dataReader)
 
 	if err != nil {
@@ -233,6 +235,7 @@ func (a *API) CreateTag(w http.ResponseWriter, r *http.Request) {
 	tagInfo.Revision = tagCreate.Revision
 	tagInfo.Tag = tagCreate.Tag
 
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 
 	err = json.NewEncoder(w).Encode(tagInfo)
@@ -284,7 +287,7 @@ func (a *API) GetTags(w http.ResponseWriter, r *http.Request) {
 	}
 
 	//loop through and recreate the revisions response
-
+	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(tagsResponse)
 }
 
@@ -319,6 +322,7 @@ func (a *API) GetTag(w http.ResponseWriter, r *http.Request) {
 	tagInfo.Revision = rev
 	tagInfo.Tag = tagRequest.tag
 
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 
 	err = json.NewEncoder(w).Encode(tagInfo)
@@ -367,6 +371,7 @@ func (a *API) DeleteTag(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 
 	//valid, return it
