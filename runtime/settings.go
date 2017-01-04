@@ -13,7 +13,8 @@ type Settings struct {
 	BucketName              string
 	Port                    int
 	GracefulShutdownTimeout time.Duration
-	SsoUrlKey               string
+	SsoURLKey               string
+	ServiceAccountFilePath  string
 }
 
 //MustValidate fail if we can't validate
@@ -26,8 +27,8 @@ func (s *Settings) MustValidate() {
 		dieFromMissingVar(bucketName)
 	}
 
-	if s.SsoUrlKey == "" {
-		dieFromMissingVar(ssoKeyURl)
+	if s.SsoURLKey == "" {
+		dieFromMissingVar(ssoKeyURL)
 	}
 
 }
@@ -46,7 +47,10 @@ const bucketName = "BUCKET_NAME"
 const port = "PORT"
 
 //the key to the sso url
-const ssoKeyURl = "SSO_KEY_URL"
+const ssoKeyURL = "SSO_KEY_URL"
+
+//The key to the service account file
+const serviceAccountFileKey = "SERVICE_ACCT_FILE"
 
 //LoadSettingsFromSystem load the settings from the env vars
 func LoadSettingsFromSystem() *Settings {
@@ -58,8 +62,9 @@ func LoadSettingsFromSystem() *Settings {
 	settings := &Settings{
 		GoogleProjectID: v.GetString(projectID),
 		BucketName:      v.GetString(bucketName),
-		SsoUrlKey:       v.GetString(ssoKeyURl),
+		SsoURLKey:       v.GetString(ssoKeyURL),
 		Port:            v.GetInt(port),
+		ServiceAccountFilePath: v.GetString(serviceAccountFileKey),
 	}
 
 	return settings

@@ -19,6 +19,7 @@ import (
 	"encoding/base64"
 
 	"cloud.google.com/go/storage"
+	"google.golang.org/api/option"
 )
 
 //GCloudStorageImpl  The google cloud storage implementation
@@ -27,10 +28,18 @@ type GCloudStorageImpl struct {
 	Context context.Context
 }
 
-//CreateGCloudStorage create the s3 storage provider and return it.
-func CreateGCloudStorage(projectID, bucketName string) (Storage, error) {
+//CreateGCloudStorage create the s3 storage provider and return it.  The serviceAccountFile can be empty, in which case defaults are used.
+func CreateGCloudStorage(projectID, bucketName, serviceAccountFile string) (Storage, error) {
+
 	ctx := context.Background()
-	client, err := storage.NewClient(ctx)
+
+	var opts option.ClientOption
+
+	if serviceAccountFile != "" {
+		opts = option.WithServiceAccountFile(serviceAccountFile)
+	}
+
+	client, err := storage.NewClient(ctx, opts)
 
 	if err != nil {
 		return nil, err
