@@ -33,13 +33,14 @@ func CreateGCloudStorage(projectID, bucketName, serviceAccountFile string) (Stor
 
 	ctx := context.Background()
 
-	var opts option.ClientOption
+	var client *storage.Client
+	var err error
 
 	if serviceAccountFile != "" {
-		opts = option.WithServiceAccountFile(serviceAccountFile)
+		client, err = storage.NewClient(ctx, option.WithServiceAccountFile(serviceAccountFile))
+	} else {
+		client, err = storage.NewClient(ctx)
 	}
-
-	client, err := storage.NewClient(ctx, opts)
 
 	if err != nil {
 		return nil, err
@@ -56,7 +57,7 @@ func CreateGCloudStorage(projectID, bucketName, serviceAccountFile string) (Stor
 			return nil, err
 		}
 
-		log.Printf("Creating bucket in project %s", projectID)
+		log.Printf("Creating bucket %s in project %s", bucketName, projectID)
 		//try and create on init
 		if err := bucket.Create(ctx, projectID, nil); err != nil {
 			return nil, err

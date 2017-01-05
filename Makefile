@@ -2,6 +2,7 @@
 
 VERSION=0.0.1-dev
 
+build-linux: test compile-linux
 
 make-push: test compile-linux build-image push-to-hub
 
