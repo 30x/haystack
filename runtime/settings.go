@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/spf13/viper"
@@ -66,6 +67,8 @@ func LoadSettingsFromSystem() *Settings {
 		Port:            v.GetInt(port),
 		ServiceAccountFilePath: v.GetString(serviceAccountFileKey),
 	}
+
+	log.Printf("Settings are %+v", settings)
 
 	return settings
 }
