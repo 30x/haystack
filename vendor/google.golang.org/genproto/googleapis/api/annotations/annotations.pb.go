@@ -38,8 +38,7 @@ var E_Http = &proto.ExtensionDesc{
 	Field:         72295728,
 	Name:          "google.api.http",
 	Tag:           "bytes,72295728,opt,name=http",
-	//Removed due to bug in the api.  Broken in 0.6.0 and master
-	// Filename:      "google/api/annotations.proto",
+	Filename:      "google/api/annotations.proto",
 }
 
 func init() {

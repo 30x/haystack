@@ -69,7 +69,7 @@ func CreateGCloudImpl() (string, storage.Storage) {
 
 	bucketName := "bundle-test-" + uuid.NewV1().String()
 
-	gcloud, err := storage.CreateGCloudStorage(projectID, bucketName, "")
+	gcloud, err := storage.CreateGCloudStorage(projectID, bucketName)
 
 	Expect(err).Should(BeNil(), "Could not create g cloud storage")
 

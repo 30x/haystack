@@ -185,7 +185,7 @@ func getAPIs() []*API {
 	apiListFile := filepath.Join(genDirRoot(), "api-list.json")
 	if *useCache {
 		if !*publicOnly {
-			log.Fatalf("-cached=true not compatible with -publiconly=false")
+			log.Fatalf("-cache=true not compatible with -publiconly=false")
 		}
 		var err error
 		bytes, err = ioutil.ReadFile(apiListFile)
@@ -689,8 +689,9 @@ type Schema struct {
 }
 
 type Property struct {
-	s *Schema // the containing Schema
-	p *disco.Property
+	s              *Schema // the containing Schema
+	p              *disco.Property
+	assignedGoName string
 }
 
 func (p *Property) Type() *disco.Schema {
@@ -859,10 +860,6 @@ func emptyEnum(enum []string) bool {
 	return false
 }
 
-func isIntAsString(s *disco.Schema) bool {
-	return s.Type == "string" && strings.Contains(s.Format, "int")
-}
-
 func (a *API) typeAsGo(s *disco.Schema, elidePointers bool) string {
 	switch s.Kind {
 	case disco.SimpleKind:
@@ -893,10 +890,20 @@ func (a *API) typeAsGo(s *disco.Schema, elidePointers bool) string {
 		}
 		return a.typeAsGo(rs, elidePointers)
 	case disco.MapKind:
+		es := s.ElementSchema()
+		if es.Type == "string" {
+			// If the element schema has a type "string", it's going to be
+			// transmitted as a string, and the Go map type must reflect that.
+			// This is true even if the format is, say, "int64". When type =
+			// "string" and format = "int64" at top level, we can use the json
+			// "string" tag option to unmarshal the string to an int64, but
+			// inside a map we can't.
+			return "map[string]string"
+		}
 		// Due to historical baggage (maps used to be a separate code path),
 		// the element types of maps never have pointers in them.  From this
 		// level down, elide pointers in types.
-		return "map[string]" + a.typeAsGo(s.ElementSchema(), true)
+		return "map[string]" + a.typeAsGo(es, true)
 	case disco.AnyStructKind:
 		return "googleapi.RawMessage"
 	case disco.StructKind:
@@ -1134,6 +1141,7 @@ func (s *Schema) writeSchemaStruct(api *API) {
 			s.api.p("\n")
 		}
 		pname := np.Get(p.GoName())
+		p.assignedGoName = pname
 		des := p.Description()
 		if des != "" {
 			s.api.p("%s", asComment("\t", fmt.Sprintf("%s: %s", pname, des)))
@@ -1141,7 +1149,7 @@ func (s *Schema) writeSchemaStruct(api *API) {
 		addFieldValueComments(s.api.p, p, "\t", des != "")
 
 		var extraOpt string
-		if isIntAsString(p.Type()) {
+		if p.Type().IsIntAsString() {
 			extraOpt += ",string"
 		}
 
@@ -1198,6 +1206,7 @@ func (s *Schema) writeSchemaStruct(api *API) {
 
 	s.api.pn("}")
 	s.writeSchemaMarshal(forceSendName, nullFieldsName)
+	s.writeSchemaUnmarshal()
 }
 
 // writeSchemaMarshal writes a custom MarshalJSON function for s, which allows
@@ -1211,6 +1220,49 @@ func (s *Schema) writeSchemaMarshal(forceSendFieldName, nullFieldsName string) {
 	s.api.pn("\traw := noMethod(*s)")
 	s.api.pn("\treturn gensupport.MarshalJSON(raw, s.%s, s.%s)", forceSendFieldName, nullFieldsName)
 	s.api.pn("}")
+}
+
+func (s *Schema) writeSchemaUnmarshal() {
+	var floatProps []*Property
+	for _, p := range s.properties() {
+		if p.p.Schema.Type == "number" {
+			floatProps = append(floatProps, p)
+		}
+	}
+	if len(floatProps) == 0 {
+		return
+	}
+	pn := s.api.pn
+	pn("\nfunc (s *%s) UnmarshalJSON(data []byte) error {", s.GoName())
+	pn("  type noMethod %s", s.GoName()) // avoid infinite recursion
+	pn("  var s1 struct {")
+	// Hide the float64 fields of the schema with fields that correctly
+	// unmarshal special values.
+	for _, p := range floatProps {
+		typ := "gensupport.JSONFloat64"
+		if p.forcePointerType() {
+			typ = "*" + typ
+		}
+		pn("%s %s `json:\"%s\"`", p.assignedGoName, typ, p.p.Name)
+	}
+	pn("    *noMethod") // embed the schema
+	pn("  }")
+	// Set the schema value into the wrapper so its other fields are unmarshaled.
+	pn("  s1.noMethod = (*noMethod)(s)")
+	pn("  if err := json.Unmarshal(data, &s1); err != nil {")
+	pn("    return err")
+	pn("  }")
+	// Copy each shadowing field into the field it shadows.
+	for _, p := range floatProps {
+		n := p.assignedGoName
+		if p.forcePointerType() {
+			pn("if s1.%s != nil { s.%s = (*float64)(s1.%s) }", n, n, n)
+		} else {
+			pn("s.%s = float64(s1.%s)", n, n)
+		}
+	}
+	pn(" return nil")
+	pn("}")
 }
 
 // isResponseType returns true for all types that are used as a response.

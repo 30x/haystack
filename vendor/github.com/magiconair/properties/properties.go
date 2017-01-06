@@ -624,7 +624,7 @@ func (p *Properties) Delete(key string) {
 	newKeys := []string{}
 	for _, k := range p.k {
 		if k != key {
-			newKeys = append(newKeys, key)
+			newKeys = append(newKeys, k)
 		}
 	}
 	p.k = newKeys
@@ -632,14 +632,14 @@ func (p *Properties) Delete(key string) {
 
 // Merge merges properties, comments and keys from other *Properties into p
 func (p *Properties) Merge(other *Properties) {
-	for k,v := range other.m {
+	for k, v := range other.m {
 		p.m[k] = v
 	}
-	for k,v := range other.c {
+	for k, v := range other.c {
 		p.c[k] = v
 	}
 
-	outer:
+outer:
 	for _, otherKey := range other.k {
 		for _, key := range p.k {
 			if otherKey == key {

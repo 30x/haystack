@@ -1,0 +1,23 @@
+ #To create indexes execute the following command when your current env is the cloud datastore.  
+ # gcloud preview datastore create-indexes index.yaml
+
+indexes:
+- kind: Revision
+  ancestor: yes
+  properties:
+  - name: Created
+    direction: desc
+
+- kind: Tag
+  ancestor: yes
+  properties:
+  - name: Created
+    direction: desc
+
+
+
+#####
+# Below is a manual gql query to execute an query witnin a budnel for a tag.  The same logic applies to a revision
+#SELECT * FROM Tag WHERE  __key__ HAS ANCESTOR KEY(BundleMeta, '8c15c123-d91c-11e6-b1c1-600308a690e2') AND BundleID = '8c15c123-d91c-11e6-b1c1-600308a690e2' AND OwnerUserID='8c15c12c-d91c-11e6-b1c1-600308a690e2' order by Created desc 
+#
+#

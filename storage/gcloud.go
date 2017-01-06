@@ -1,7 +1,6 @@
 package storage
 
 import (
-	"bytes"
 	"context"
 	"crypto/sha512"
 	"encoding/hex"
@@ -9,38 +8,36 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"strings"
 	"time"
 
 	"google.golang.org/api/iterator"
 
 	uuid "github.com/satori/go.uuid"
 
-	"encoding/base64"
-
+	"cloud.google.com/go/datastore"
 	"cloud.google.com/go/storage"
-	"google.golang.org/api/option"
 )
 
 //GCloudStorageImpl  The google cloud storage implementation
 type GCloudStorageImpl struct {
-	Bucket  *storage.BucketHandle
-	Context context.Context
+	Bucket   *storage.BucketHandle
+	DsClient *datastore.Client
+	Context  context.Context
 }
 
 //CreateGCloudStorage create the s3 storage provider and return it.  The serviceAccountFile can be empty, in which case defaults are used.
-func CreateGCloudStorage(projectID, bucketName, serviceAccountFile string) (Storage, error) {
+//see https://cloud.google.com/vision/docs/common/auth for setting creds
+func CreateGCloudStorage(projectID, bucketName string) (Storage, error) {
 
 	ctx := context.Background()
 
-	var client *storage.Client
-	var err error
+	client, err := storage.NewClient(ctx)
 
-	if serviceAccountFile != "" {
-		client, err = storage.NewClient(ctx, option.WithServiceAccountFile(serviceAccountFile))
-	} else {
-		client, err = storage.NewClient(ctx)
+	if err != nil {
+		return nil, err
 	}
+
+	dsClient, err := datastore.NewClient(ctx, projectID)
 
 	if err != nil {
 		return nil, err
@@ -67,21 +64,22 @@ func CreateGCloudStorage(projectID, bucketName, serviceAccountFile string) (Stor
 	// Creates the new bucket
 
 	return &GCloudStorageImpl{
-		Bucket:  bucket,
-		Context: ctx,
+		Bucket:   bucket,
+		Context:  ctx,
+		DsClient: dsClient,
 	}, nil
 }
 
 //SaveBundle store the bytes of the bundle id
-func (s *GCloudStorageImpl) SaveBundle(bytes io.Reader, bundleID string) (string, error) {
+func (s *GCloudStorageImpl) SaveBundle(bytes io.Reader, bundleMeta *BundleMeta) (string, error) {
 
-	if bundleID == "" {
+	if bundleMeta.BundleID == "" {
 		return "", errors.New("You must specify a bundle id")
 	}
 
 	timestamp := time.Now()
 
-	tempObjectName := getTempUploadPath(bundleID)
+	tempObjectName := getTempUploadPath(bundleMeta.BundleID)
 
 	tempObject := s.Bucket.Object(tempObjectName)
 
@@ -89,6 +87,38 @@ func (s *GCloudStorageImpl) SaveBundle(bytes io.Reader, bundleID string) (string
 
 	//mark the type as a zip before we upload
 	writer.ContentType = "application/zip"
+
+	//get the bundle meta, and ensure the owners are the same
+
+	//we have to do get+ write for the first time in a transation to ensure we don't have a race condition
+	_, err := s.DsClient.RunInTransaction(s.Context, func(transaction *datastore.Transaction) error {
+
+		existing := &BundleMeta{}
+
+		metaKey := createBundleMetaKey(bundleMeta.BundleID)
+
+		err := transaction.Get(metaKey, existing)
+
+		if err != nil {
+			//entity doesn't exist, create it
+			if err == datastore.ErrNoSuchEntity {
+				_, err := transaction.Put(metaKey, bundleMeta)
+
+				return err
+
+			}
+			//if we got it, check they're the same
+		} else if bundleMeta.OwnerUserID != existing.OwnerUserID {
+			return ErrNotAllowed
+		}
+
+		return nil
+
+	})
+
+	if err != nil {
+		return "", err
+	}
 
 	// io.Copy(writer, bytes)
 
@@ -98,12 +128,12 @@ func (s *GCloudStorageImpl) SaveBundle(bytes io.Reader, bundleID string) (string
 
 	hasher := sha512.New()
 
-	log.Printf("Copying bytes for bundleId %s to gcloud and sha512 sum ", bundleID)
+	log.Printf("Copying bytes for bundleId %s to gcloud and sha512 sum ", bundleMeta.BundleID)
 
 	//reading from the shaReader will also cause the bytes to be copied to the writer, which is in turn sending them to gcloud
 	size, err := io.Copy(hasher, shaReader)
 
-	log.Printf("Finished copying %d bytes for bundleId %s", size, bundleID)
+	log.Printf("Finished copying %d bytes for bundleId %s", size, bundleMeta.BundleID)
 
 	if err != nil {
 		return "", err
@@ -118,7 +148,7 @@ func (s *GCloudStorageImpl) SaveBundle(bytes io.Reader, bundleID string) (string
 	sha512 := hex.EncodeToString(hasher.Sum(nil))
 
 	//now rename to the target file
-	targetFile := getRevisionData(bundleID, sha512)
+	targetFile := getRevisionData(bundleMeta.BundleID, sha512)
 
 	destinationObject := s.Bucket.Object(targetFile)
 
@@ -135,28 +165,31 @@ func (s *GCloudStorageImpl) SaveBundle(bytes io.Reader, bundleID string) (string
 		return "", err
 	}
 
-	orderedRevision := getRevisionPath(bundleID, sha512, timestamp)
-
-	writer = s.Bucket.Object(orderedRevision).NewWriter(s.Context)
-
-	_, err = writer.Write([]byte{0})
-
-	if err != nil {
-		return "", err
+	//write the revision into the cloud db
+	revision := &Revision{
+		BundleID:       bundleMeta.BundleID,
+		RevisionSha512: sha512,
+		Created:        timestamp,
 	}
 
-	err = writer.Close()
+	//create hte key and write it.
+	key := createRevisionKey(bundleMeta.BundleID, sha512)
 
-	if err != nil {
-		return "", err
-	}
+	_, err = s.DsClient.Put(s.Context, key, revision)
 
-	return sha512, nil
+	return sha512, err
 }
 
 //GetBundle the bundle and return it
-func (s *GCloudStorageImpl) GetBundle(bundleID, sha512 string) (io.ReadCloser, error) {
-	targetFile := getRevisionData(bundleID, sha512)
+func (s *GCloudStorageImpl) GetBundle(bundleMeta *BundleMeta, sha512 string) (io.ReadCloser, error) {
+
+	err := s.checkAccess(bundleMeta)
+
+	if err != nil {
+		return nil, err
+	}
+
+	targetFile := getRevisionData(bundleMeta.BundleID, sha512)
 
 	destinationObject := s.Bucket.Object(targetFile)
 
@@ -174,160 +207,164 @@ func (s *GCloudStorageImpl) GetBundle(bundleID, sha512 string) (io.ReadCloser, e
 	return reader, nil
 }
 
+//GetBundleOwner get a bundle's owner
+func (s *GCloudStorageImpl) GetBundleOwner(bundleID string) (*BundleMeta, error) {
+	return nil, nil
+}
+
 //GetRevisions get the revisions for the bundle and return them.
-func (s *GCloudStorageImpl) GetRevisions(bundleID, cursor string, pageSize int) ([]*Revision, string, error) {
+func (s *GCloudStorageImpl) GetRevisions(bundleMeta *BundleMeta, cursor string, pageSize int) ([]*Revision, string, error) {
+
+	err := s.checkAccess(bundleMeta)
+
+	if err != nil {
+		return nil, "", err
+	}
+
+	query := datastore.NewQuery(typeRevision).Namespace(namespace).Limit(pageSize).Ancestor(createBundleMetaKey(bundleMeta.BundleID)).Order("-Created")
+
+	//set the cursor if passed
+	if cursor != "" {
+		cursor, err := datastore.DecodeCursor(cursor)
+
+		if err != nil {
+			return nil, "", err
+		}
+
+		query = query.Start(cursor)
+	}
+
+	itrResults := s.DsClient.Run(s.Context, query)
 
 	revisions := []*Revision{}
 
-	//scan all tags for the bundleid
+	for {
 
-	startValue, useCursor := decodeCursor(cursor, bundleID)
+		revision := &Revision{}
 
-	fmt.Printf("Decoded cursor is '%s' and userCursor is '%t'", startValue, useCursor)
-
-	//TODO there seems to be no way to set fetch size.  Doing so at 2x our page Size would be faster as we iterate farther down the page list
-	itr := s.Bucket.Objects(s.Context, &storage.Query{
-		Prefix: fmt.Sprintf("%s/revisions", bundleID),
-	})
-
-	last := ""
-
-	cursorEncountered := false
-
-	for len(revisions) < pageSize {
-		obj, err := itr.Next()
+		_, err := itrResults.Next(revision)
 
 		if err != nil {
 			if err == iterator.Done {
 				break
 			}
-
-			return nil, "", err
-		}
-
-		//we're to use a cursor, and this is equivalent to what was passed to us, drop it from the result set
-		if useCursor && !cursorEncountered {
-			//set our encountered flag so we no longer skip items.  Not the most efficient, but works with the api we're given
-			cursorEncountered = obj.Name == startValue
-
-			continue
-		}
-
-		last = obj.Name
-
-		revision, err := parseRevision(obj.Name)
-
-		if err != nil {
 			return nil, "", err
 		}
 
 		revisions = append(revisions, revision)
+	}
 
+	returnedCursor, err := itrResults.Cursor()
+
+	if err != nil {
+		return nil, "", err
 	}
 
 	returnCursor := ""
 
 	if len(revisions) == pageSize {
-		returnCursor = encodeCursor(last)
+		returnCursor = returnedCursor.String()
 	}
 
 	return revisions, returnCursor, nil
 }
 
 //CreateTag create a tag for the bundle id
-func (s *GCloudStorageImpl) CreateTag(bundleID, sha512, tag string) error {
+func (s *GCloudStorageImpl) CreateTag(bundleMeta *BundleMeta, sha512, tag string) error {
 
-	targetFile := getRevisionData(bundleID, sha512)
-
-	//check it exists
-	_, err := s.Bucket.Object(targetFile).Attrs(s.Context)
+	err := s.checkAccess(bundleMeta)
 
 	if err != nil {
-		if err == storage.ErrObjectNotExist {
+		return err
+	}
+
+	//check if the tag already exists
+	revisionKey := createRevisionKey(bundleMeta.BundleID, sha512)
+
+	revision := &Revision{}
+
+	err = s.DsClient.Get(s.Context, revisionKey, revision)
+
+	if err != nil {
+		if err == datastore.ErrNoSuchEntity {
 			return ErrRevisionNotExist
 		}
 
 		return err
 	}
 
-	//now create the file
+	key := createTagKey(bundleMeta.BundleID, tag)
 
-	tagPath := getTagPath(bundleID, tag)
-
-	tagObject := s.Bucket.Object(tagPath)
-
-	writer := tagObject.NewWriter(s.Context)
-
-	_, err = io.Copy(writer, strings.NewReader(sha512))
-
-	if err != nil {
-		return err
+	//ensure we get a not found, otherwise we want to bail
+	tagData := &Tag{
+		Created:        time.Now().UTC(),
+		Name:           tag,
+		RevisionSha512: sha512,
+		BundleID:       bundleMeta.BundleID,
 	}
 
-	//close the output to the file
-	err = writer.Close()
+	//write the tag data
+
+	_, err = s.DsClient.Put(s.Context, key, tagData)
 
 	return err
+
 }
 
 //GetTags get the tags
-func (s *GCloudStorageImpl) GetTags(bundleID, cursor string, pageSize int) ([]*Tag, string, error) {
+func (s *GCloudStorageImpl) GetTags(bundleMeta *BundleMeta, cursor string, pageSize int) ([]*Tag, string, error) {
+
+	err := s.checkAccess(bundleMeta)
+
+	if err != nil {
+		return nil, "", err
+	}
+
+	query := datastore.NewQuery(typeTag).Namespace(namespace).Limit(pageSize).Ancestor(createBundleMetaKey(bundleMeta.BundleID)).Order("-Created")
+
+	// query = query.Filter("BundleID = ", bundleMeta.BundleID).Filter("OwnerUserID = ", bundleMeta.OwnerUserID)
+
+	//set the cursor if passed
+	if cursor != "" {
+		cursor, err := datastore.DecodeCursor(cursor)
+
+		if err != nil {
+			return nil, "", err
+		}
+
+		query = query.Start(cursor)
+	}
+
+	itrResults := s.DsClient.Run(s.Context, query)
 
 	tags := []*Tag{}
 
-	startValue, useCursor := decodeCursor(cursor, bundleID)
+	for {
 
-	//scan all tags for the bundleid
-	itr := s.Bucket.Objects(s.Context, &storage.Query{
-		Prefix: fmt.Sprintf("%s/tags", bundleID),
-	})
+		tag := &Tag{}
 
-	last := ""
-
-	cursorEncountered := false
-
-	for len(tags) < pageSize {
-		obj, err := itr.Next()
+		_, err := itrResults.Next(tag)
 
 		if err != nil {
 			if err == iterator.Done {
 				break
 			}
-
 			return nil, "", err
 		}
 
-		//we're to use a cursor, and this is equivalent to what was passed to us, drop it from the result set
-		if useCursor && !cursorEncountered {
-			//set our encountered flag so we no longer skip items.  Not the most efficient, but works with the api we're given
-			cursorEncountered = obj.Name == startValue
-			continue
-		}
+		tags = append(tags, tag)
+	}
 
-		last = obj.Name
+	returnedCursor, err := itrResults.Cursor()
 
-		parts := strings.Split(obj.Name, "/")
-
-		tagName := parts[len(parts)-1]
-
-		//TODO make this fan out/merge for faster execution with lots of tags
-		shaValue, err := s.getShaFromTag(obj.Name)
-
-		if err != nil {
-			return nil, "", err
-		}
-
-		tags = append(tags, &Tag{
-			Name:     tagName,
-			Revision: shaValue,
-		})
-
+	if err != nil {
+		return nil, "", err
 	}
 
 	returnCursor := ""
 
 	if len(tags) == pageSize {
-		returnCursor = encodeCursor(last)
+		returnCursor = returnedCursor.String()
 	}
 
 	return tags, returnCursor, nil
@@ -335,46 +372,66 @@ func (s *GCloudStorageImpl) GetTags(bundleID, cursor string, pageSize int) ([]*T
 }
 
 //GetRevisionForTag Get the revision of the bundle and tag.  If none is specified an error will be returned
-func (s *GCloudStorageImpl) GetRevisionForTag(bundleID, tag string) (string, error) {
-	tagPath := getTagPath(bundleID, tag)
+func (s *GCloudStorageImpl) GetRevisionForTag(bundleMeta *BundleMeta, tag string) (string, error) {
 
-	return s.getShaFromTag(tagPath)
-}
-
-func (s *GCloudStorageImpl) getShaFromTag(tagPath string) (string, error) {
-	reader, err := s.Bucket.Object(tagPath).NewReader(s.Context)
+	err := s.checkAccess(bundleMeta)
 
 	if err != nil {
-		if err == storage.ErrObjectNotExist {
+		return "", err
+	}
+
+	tagEntity := &Tag{}
+
+	err = s.DsClient.Get(s.Context, createTagKey(bundleMeta.BundleID, tag), tagEntity)
+
+	if err != nil {
+		if err == datastore.ErrNoSuchEntity {
 			return "", ErrTagNotExist
 		}
+
 		return "", err
+
 	}
 
-	shaBuffer := &bytes.Buffer{}
+	return tagEntity.RevisionSha512, nil
 
-	_, err = io.Copy(shaBuffer, reader)
+}
+
+//checkAccess check if the requested user has access
+func (s *GCloudStorageImpl) checkAccess(requestedBundleMeta *BundleMeta) error {
+
+	existingMeta := &BundleMeta{}
+
+	err := s.DsClient.Get(s.Context, createBundleMetaKey(requestedBundleMeta.BundleID), existingMeta)
 
 	if err != nil {
-		return "", err
+		if err == datastore.ErrNoSuchEntity {
+			return ErrRevisionNotExist
+		}
+
+		return err
 	}
 
-	//now we've copied return the string
-	return shaBuffer.String(), nil
+	if requestedBundleMeta.OwnerUserID != existingMeta.OwnerUserID {
+		return ErrNotAllowed
+	}
+
+	return nil
 }
 
 //DeleteTag a tag for the bundleId and tag.  If the tag does not exist, and error will be reteurned
-func (s *GCloudStorageImpl) DeleteTag(bundleID, tag string) error {
+func (s *GCloudStorageImpl) DeleteTag(bundleMeta *BundleMeta, tag string) error {
 
-	tagPath := getTagPath(bundleID, tag)
+	//make sure it exists
+	_, err := s.GetRevisionForTag(bundleMeta, tag)
 
-	err := s.Bucket.Object(tagPath).Delete(s.Context)
-
-	if err == storage.ErrObjectNotExist {
-		return ErrTagNotExist
+	if err != nil {
+		return err
 	}
 
-	return err
+	key := createTagKey(bundleMeta.BundleID, tag)
+
+	return s.DsClient.Delete(s.Context, key)
 }
 
 func getTempUploadPath(bundleID string) string {
@@ -385,79 +442,36 @@ func getRevisionData(bundleID, revision string) string {
 	return fmt.Sprintf("%s/revisionData/%s.zip", bundleID, revision)
 }
 
-//get the path where a revision pointer is stored
-func getRevisionPath(bundleID, revision string, timestamp time.Time) string {
-	//take the timestamp and minus the max so we get reverse ordering
+func createRevisionKey(bundleID, revision string) *datastore.Key {
+	return &datastore.Key{
+		Parent:    createBundleMetaKey(bundleID),
+		Name:      fmt.Sprintf("%s-sha512:%s", bundleID, revision),
+		Kind:      typeRevision,
+		Namespace: namespace,
+	}
 
-	orderID := timestamp.UTC().Format(time.RFC3339Nano)
-
-	// return fmt.Sprintf("%s/revisions/%020d-%s", bundleID, orderID, revision)
-	return fmt.Sprintf("%s/revisions/%s-%s", bundleID, orderID, revision)
 }
 
-//parseRevision parse the revision based on the written format
-func parseRevision(storedValue string) (*Revision, error) {
-	segmentIndex := strings.LastIndex(storedValue, "-")
-
-	if segmentIndex == -1 {
-		return nil, fmt.Errorf("Revision name of '%s' is not a recognized format", storedValue)
+func createBundleMetaKey(bundleID string) *datastore.Key {
+	return &datastore.Key{
+		Name:      bundleID,
+		Kind:      typeBundleMeta,
+		Namespace: namespace,
 	}
 
-	revisionSha := storedValue[segmentIndex+1:]
-
-	timePart := storedValue[:segmentIndex]
-
-	slashIndex := strings.LastIndex(timePart, "/")
-
-	dateTime := timePart[slashIndex+1:]
-
-	time, err := time.Parse(time.RFC3339Nano, dateTime)
-
-	if err != nil {
-		return nil, err
-	}
-
-	return &Revision{
-		Revision: revisionSha,
-		Created:  time,
-	}, nil
 }
 
-func getTagPath(bundleID, tag string) string {
-	return fmt.Sprintf("%s/tags/%s", bundleID, tag)
+func createTagKey(bundleID, tag string) *datastore.Key {
+	return &datastore.Key{
+		Parent:    createBundleMetaKey(bundleID),
+		Name:      fmt.Sprintf("%s-%s", bundleID, tag),
+		Kind:      typeTag,
+		Namespace: namespace,
+	}
+
 }
 
-//encodeCursor encode the cursor so that the user can return it later
-func encodeCursor(lastValue string) string {
-	if lastValue == "" {
-		return ""
-	}
-
-	// fmt.Printf("Encoding last value of '%s'", lastValue)
-	return base64.RawURLEncoding.EncodeToString([]byte(lastValue))
-}
-
-//decodeCursor decode the cursor, if it exists, then validate it matches the expected bundle id.  If we can't decode, or it doesn't match, false will be returned.  If the cursor is not present, false will be returned
-func decodeCursor(cursorValue, bundleID string) (string, bool) {
-
-	if cursorValue == "" {
-		return "", false
-	}
-
-	bytes, err := base64.RawURLEncoding.DecodeString(cursorValue)
-
-	if err != nil {
-		return "", false
-	}
-
-	stringVal := string(bytes)
-
-	// fmt.Printf("Decoded last value of '%s'", stringVal)
-
-	//not the bundle Id we expect, which is a security risk, ignore it
-	if strings.Index(stringVal, bundleID) != 0 {
-		return "", false
-	}
-
-	return stringVal, true
-}
+const typeRevision = "Revision"
+const typeBundleMeta = "BundleMeta"
+const typeTag = "Tag"
+const namespace = "BundleStorage"
