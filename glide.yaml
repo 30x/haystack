@@ -1,7 +1,7 @@
 package: github.com/30x/haystack
 import:
 - package: cloud.google.com/go/storage
-  version: v0.4.0
+  version: v0.6.0
 - package: github.com/gorilla/mux
 - package: github.com/gorilla/handlers
 - package: github.com/spf13/viper
