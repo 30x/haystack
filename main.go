@@ -17,7 +17,7 @@ func main() {
 
 	oAuthService := oauth2.CreateApigeeOAuth(settings.SsoURLKey)
 
-	storage, err := storage.CreateGCloudStorage(settings.GoogleProjectID, settings.BucketName, settings.ServiceAccountFilePath)
+	storage, err := storage.CreateGCloudStorage(settings.GoogleProjectID, settings.BucketName)
 
 	if err != nil {
 		log.Fatal(err)

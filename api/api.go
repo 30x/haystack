@@ -49,6 +49,8 @@ func CreateRoutes(storage storage.Storage, authService oauth2.OAuthService) *mux
 	r.Path("/bundles/{bundleName}/tags/{tagName}").Methods("GET").Handler(authService.VerifyOAuth(http.HandlerFunc(api.GetTag)))
 	r.Path("/bundles/{bundleName}/tags/{tagName}").Methods("DELETE").Handler(authService.VerifyOAuth(http.HandlerFunc(api.GetTag)))
 
+	r.Path("/health").Methods("GET").HandlerFunc(api.Health)
+
 	return r
 }
 
@@ -520,6 +522,14 @@ func (a *API) DeleteTag(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		httputil.WriteErrorResponse(http.StatusInternalServerError, err.Error(), w)
 	}
+}
+
+//Health get the health function
+func (a *API) Health(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "plain/text")
+
+	w.Write([]byte("OK"))
+
 }
 
 //The API instance with the storage pointer
