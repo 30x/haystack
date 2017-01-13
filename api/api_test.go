@@ -13,6 +13,7 @@ import (
 
 	"github.com/30x/haystack/api"
 	"github.com/30x/haystack/httputil"
+	"github.com/30x/haystack/oauth2"
 	"github.com/30x/haystack/storage"
 	. "github.com/30x/haystack/test"
 	uuid "github.com/satori/go.uuid"
@@ -82,9 +83,7 @@ var _ = Describe("server", func() {
 				revisionCreatedResponses = append(revisionCreatedResponses, bundleCreatedResponse)
 			}
 
-			//lists are eventually consistent. https://cloud.google.com/storage/docs/consistency
-			time.Sleep(1 * time.Second)
-
+			revisionCreatedResponses = ReverseBundleCreatedResponse(revisionCreatedResponses)
 			response, revisions, errors := getRevisions(testServer, bundleName, "", 2)
 
 			IsNil(errors)
@@ -237,8 +236,7 @@ var _ = Describe("server", func() {
 				tagResponses = append(tagResponses, tagResponse)
 			}
 
-			//lists are eventually consistent. https://cloud.google.com/storage/docs/consistency
-			time.Sleep(1 * time.Second)
+			tagResponses = ReverseTagInfodResponse(tagResponses)
 
 			response, tags, err := getTags(testServer, bundleName, "", 2)
 
@@ -347,7 +345,15 @@ var _ = Describe("server", func() {
 		BeforeSuite(func() {
 
 			bucketName, storageImpl = CreateGCloudImpl()
-			fakeOauth := &noOpTestAuth{}
+
+			testPrincipal := &testPrincipal{
+				subject: "testsubject",
+			}
+
+			fakeOauth := &staticPrincipalAuth{
+				principal: testPrincipal,
+			}
+
 			r := api.CreateRoutes(storageImpl, fakeOauth)
 
 			testServer = httptest.NewServer(r)
@@ -355,8 +361,8 @@ var _ = Describe("server", func() {
 		})
 
 		AfterSuite(func() {
-			//wait to list works on delete
-			time.Sleep(1 * time.Second)
+			//wait to list assets works on delete
+			time.Sleep(2 * time.Second)
 			RemoveGCloudTestBucket(bucketName, storageImpl)
 		})
 
@@ -644,10 +650,40 @@ func resposneBodyAsBytes(response *http.Response) []byte {
 
 }
 
-type noOpTestAuth struct{}
+type staticPrincipalAuth struct {
+	principal oauth2.Principal
+}
 
-func (n *noOpTestAuth) VerifyOAuth(next http.Handler) http.Handler {
+func (s *staticPrincipalAuth) VerifyOAuth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		next.ServeHTTP(rw, r)
+
+		nextRequest := oauth2.SetPrincipalInRequest(r, s.principal)
+		next.ServeHTTP(rw, nextRequest)
 	})
+}
+
+type testPrincipal struct {
+	subject string
+}
+
+func (t *testPrincipal) GetSubject() (string, error) {
+	return t.subject, nil
+}
+
+func ReverseBundleCreatedResponse(slice []*api.BundleCreatedResponse) []*api.BundleCreatedResponse {
+	for i := len(slice)/2 - 1; i >= 0; i-- {
+		opp := len(slice) - 1 - i
+		slice[i], slice[opp] = slice[opp], slice[i]
+	}
+
+	return slice
+}
+
+func ReverseTagInfodResponse(slice []*api.TagInfo) []*api.TagInfo {
+	for i := len(slice)/2 - 1; i >= 0; i-- {
+		opp := len(slice) - 1 - i
+		slice[i], slice[opp] = slice[opp], slice[i]
+	}
+
+	return slice
 }

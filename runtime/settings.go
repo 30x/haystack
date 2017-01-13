@@ -15,7 +15,6 @@ type Settings struct {
 	Port                    int
 	GracefulShutdownTimeout time.Duration
 	SsoURLKey               string
-	ServiceAccountFilePath  string
 }
 
 //MustValidate fail if we can't validate
@@ -50,9 +49,6 @@ const port = "PORT"
 //the key to the sso url
 const ssoKeyURL = "SSO_KEY_URL"
 
-//The key to the service account file
-const serviceAccountFileKey = "SERVICE_ACCT_FILE"
-
 //LoadSettingsFromSystem load the settings from the env vars
 func LoadSettingsFromSystem() *Settings {
 	v := viper.New()
@@ -65,7 +61,6 @@ func LoadSettingsFromSystem() *Settings {
 		BucketName:      v.GetString(bucketName),
 		SsoURLKey:       v.GetString(ssoKeyURL),
 		Port:            v.GetInt(port),
-		ServiceAccountFilePath: v.GetString(serviceAccountFileKey),
 	}
 
 	log.Printf("Settings are %+v", settings)

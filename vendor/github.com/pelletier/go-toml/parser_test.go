@@ -283,6 +283,17 @@ func TestArrayNested(t *testing.T) {
 	})
 }
 
+func TestNestedArrayComment(t *testing.T) {
+	tree, err := Load(`
+someArray = [
+# does not work
+["entry1"]
+]`)
+	assertTree(t, tree, err, map[string]interface{}{
+		"someArray": [][]string{{"entry1"}},
+	})
+}
+
 func TestNestedEmptyArrays(t *testing.T) {
 	tree, err := Load("a = [[[]]]")
 	assertTree(t, tree, err, map[string]interface{}{
@@ -646,7 +657,7 @@ func TestToTomlValue(t *testing.T) {
 		{time.Date(1979, time.May, 27, 7, 32, 0, 0, time.UTC),
 			"1979-05-27T07:32:00Z"},
 		{[]interface{}{"gamma", "delta"},
-			"[\n  \"gamma\",\n  \"delta\",\n]"},
+			"[\"gamma\",\"delta\"]"},
 		{nil, ""},
 	} {
 		result := toTomlValue(item.Value, 0)

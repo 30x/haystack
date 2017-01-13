@@ -1,11 +1,14 @@
-hash: 308dcdfa23b8fd35baef0d53bb0c2022088ff8acfe02f4a05ea57832ad59082b
-updated: 2017-01-03T11:18:10.88537397-07:00
+hash: c62ade31569ddafb5180a98058514a952f931764d6bef6418e70df6a1566dcc6
+updated: 2017-01-12T14:24:43.235907176-07:00
 imports:
 - name: cloud.google.com/go
-  version: 8c2dc6124f184bbfc2f13949476cb98e12bda2bb
+  version: c116c7972ec94f148459a304d07a67ecbc770d4b
   subpackages:
   - compute/metadata
+  - datastore
   - internal
+  - internal/atomiccache
+  - internal/fields
   - internal/optional
   - storage
 - name: github.com/fsnotify/fsnotify
@@ -14,6 +17,10 @@ imports:
   version: 8ee79997227bf9b34611aee7946ae64735e6fd93
   subpackages:
   - proto
+  - protoc-gen-go/descriptor
+  - ptypes/struct
+  - ptypes/timestamp
+  - ptypes/wrappers
 - name: github.com/googleapis/gax-go
   version: da06d194a00e19ce00d9011a13931c3f6f6887c7
 - name: github.com/gorilla/context
@@ -23,7 +30,7 @@ imports:
 - name: github.com/gorilla/mux
   version: 757bef944d0f21880861c2dd9c871ca543023cba
 - name: github.com/hashicorp/hcl
-  version: 37ab263305aaeb501a60eb16863e808d426e37f2
+  version: eb6f65b2d77ed5078887f960ff570fbddbbeb49d
   subpackages:
   - hcl/ast
   - hcl/parser
@@ -34,9 +41,9 @@ imports:
   - json/scanner
   - json/token
 - name: github.com/magiconair/properties
-  version: 9c47895dc1ce54302908ab8a43385d1f5df2c11c
+  version: 00ec919ecb56326853e2c1eee377fa324bc23a79
 - name: github.com/mitchellh/mapstructure
-  version: 5a0325d7fafaac12dda6e7fb8bd222ec1b69875e
+  version: bfdb1a85537d60bc7e954e600c250219ea497417
 - name: github.com/onsi/gomega
   version: f1f0f388b31eca4e2cbe7a6dd8a3a1dfddda5b1c
   subpackages:
@@ -54,27 +61,31 @@ imports:
 - name: github.com/pelletier/go-buffruneio
   version: df1e16fde7fc330a0ca68167c23bf7ed6ac31d6d
 - name: github.com/pelletier/go-toml
-  version: ce7be745f09fe4ff89af8e3ea744e1deabf20ee3
+  version: 439fbba1f887c286024370cb4f281ba815c4c7d7
 - name: github.com/satori/go.uuid
   version: b061729afc07e77a8aa4fad0a2fd840958f1942a
 - name: github.com/SermoDigital/jose
   version: 2bd9b81ac51d6d6134fcd4fd846bd2e7347a15f9
+  subpackages:
+  - crypto
+  - jws
+  - jwt
 - name: github.com/spf13/afero
-  version: 06b7e5f50606ecd49148a01a6008942d9b669217
+  version: 72b31426848c6ef12a7a8e216708cb0d1530f074
   subpackages:
   - mem
 - name: github.com/spf13/cast
-  version: 24b6558033ffe202bf42f0f3b870dcc798dd2ba8
+  version: 56a7ecbeb18dde53c6db4bd96b541fd9741b8d44
 - name: github.com/spf13/jwalterweatherman
-  version: 33c24e77fb80341fe7130ee7c594256ff08ccc46
+  version: fa7ca7e836cf3a8bb4ebf799f472c12d7e903d66
 - name: github.com/spf13/pflag
-  version: 5ccb023bc27df288a957c5e994cd44fd19619465
+  version: 25f8b5b07aece3207895bf19f7ab517eb3b22a40
 - name: github.com/spf13/viper
-  version: 651d9d916abc3c3d6a91a12549495caba5edffd2
+  version: 5ed0fc31f7f453625df314d8e66b9791e8d13003
 - name: github.com/tylerb/graceful
-  version: 4df1190835320af7076dfcf27b3d071fd3612caf
+  version: d37e108c89765a8e307f15b8fb2ecd10575da6bb
 - name: golang.org/x/net
-  version: de22433a9fb633cca81708735cd52c3b7b205ecf
+  version: 60c41d1de8da134c05b7b40154a9a82bf5b7edb9
   subpackages:
   - context
   - context/ctxhttp
@@ -85,23 +96,25 @@ imports:
   - lex/httplex
   - trace
 - name: golang.org/x/oauth2
-  version: f6093e37b6cb4092101a298aba5d794eb570757f
+  version: 314dd2c0bf3ebd592ec0d20847d27e79d0dbe8dd
   subpackages:
   - google
   - internal
   - jws
   - jwt
 - name: golang.org/x/sys
-  version: 478fcf54317e52ab69f40bb4c7a1520288d7f7ea
+  version: d75a52659825e75fff6158388dddc6a5b04f9ba5
   subpackages:
   - unix
 - name: golang.org/x/text
-  version: 5c6cf4f9a2357d38515014cea8c488ed22bdab90
+  version: 44f4f658a783b0cee41fe0a23b8fc91d9c120558
   subpackages:
+  - secure/bidirule
   - transform
+  - unicode/bidi
   - unicode/norm
 - name: google.golang.org/api
-  version: 9d2f127ef7faa69291c1a6d2ec92065479170af1
+  version: d61af0b67e5c8213e8c260ac29a762487bad020d
   subpackages:
   - gensupport
   - googleapi
@@ -113,7 +126,7 @@ imports:
   - storage/v1
   - transport
 - name: google.golang.org/appengine
-  version: ca59ef35f409df61fa4a5f8290ff289b37eccfb8
+  version: 8758a385849434ba5eac8aeedcf5192c5a0f5f10
   subpackages:
   - internal
   - internal/app_identity
@@ -126,8 +139,14 @@ imports:
   - internal/urlfetch
   - socket
   - urlfetch
+- name: google.golang.org/genproto
+  version: b3e7c2fb04031add52c4817f53f43757ccbf9c18
+  subpackages:
+  - googleapis/api/annotations
+  - googleapis/datastore/v1
+  - googleapis/type/latlng
 - name: google.golang.org/grpc
-  version: 708a7f9f3283aa2d4f6132d287d78683babe55c8
+  version: 50955793b0183f9de69bd78e2ec251cf20aab121
   subpackages:
   - codes
   - credentials
@@ -144,7 +163,7 @@ imports:
   version: a5b47d31c556af34a302ce5d659e6fea44d90de0
 testImports:
 - name: github.com/onsi/ginkgo
-  version: 00054c0bb96fc880d4e0be1b90937fad438c5290
+  version: a23f924ce96d61f963fb6219b8ff069d8d768cc2
   subpackages:
   - config
   - ginkgo

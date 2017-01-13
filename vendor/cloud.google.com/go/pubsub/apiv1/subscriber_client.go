@@ -1,10 +1,10 @@
-// Copyright 2016 Google Inc. All Rights Reserved.
+// Copyright 2016, Google Inc. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//      http://www.apache.org/licenses/LICENSE-2.0
+//     http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"math"
 	"runtime"
+	"strings"
 	"time"
 
 	"cloud.google.com/go/iam"
@@ -138,7 +139,8 @@ func (c *SubscriberClient) Close() error {
 // the `x-goog-api-client` header passed on each request. Intended for
 // use by Google-written clients.
 func (c *SubscriberClient) SetGoogleClientInfo(name, version string) {
-	v := fmt.Sprintf("%s/%s %s gax/%s go/%s", name, version, gapicNameVersion, gax.Version, runtime.Version())
+	goVersion := strings.Replace(runtime.Version(), " ", "_", -1)
+	v := fmt.Sprintf("%s/%s %s gax/%s go/%s", name, version, gapicNameVersion, gax.Version, goVersion)
 	c.metadata = metadata.Pairs("x-goog-api-client", v)
 }
 
@@ -190,8 +192,11 @@ func (c *SubscriberClient) TopicIAM(topic *pubsubpb.Topic) *iam.Handle {
 // If the corresponding topic doesn't exist, returns `NOT_FOUND`.
 //
 // If the name is not provided in the request, the server will assign a random
-// name for this subscription on the same project as the topic. Note that
-// for REST API requests, you must specify a name.
+// name for this subscription on the same project as the topic, conforming
+// to the
+// [resource name format](https://cloud.google.com/pubsub/docs/overview#names).
+// The generated name is populated in the returned Subscription object.
+// Note that for REST API requests, you must specify a name in the request.
 func (c *SubscriberClient) CreateSubscription(ctx context.Context, req *pubsubpb.Subscription) (*pubsubpb.Subscription, error) {
 	md, _ := metadata.FromContext(ctx)
 	ctx = metadata.NewContext(ctx, metadata.Join(md, c.metadata))
@@ -228,8 +233,7 @@ func (c *SubscriberClient) ListSubscriptions(ctx context.Context, req *pubsubpb.
 	md, _ := metadata.FromContext(ctx)
 	ctx = metadata.NewContext(ctx, metadata.Join(md, c.metadata))
 	it := &SubscriptionIterator{}
-
-	fetch := func(pageSize int, pageToken string) (string, error) {
+	it.InternalFetch = func(pageSize int, pageToken string) ([]*pubsubpb.Subscription, string, error) {
 		var resp *pubsubpb.ListSubscriptionsResponse
 		req.PageToken = pageToken
 		if pageSize > math.MaxInt32 {
@@ -243,27 +247,27 @@ func (c *SubscriberClient) ListSubscriptions(ctx context.Context, req *pubsubpb.
 			return err
 		}, c.CallOptions.ListSubscriptions...)
 		if err != nil {
+			return nil, "", err
+		}
+		return resp.Subscriptions, resp.NextPageToken, nil
+	}
+	fetch := func(pageSize int, pageToken string) (string, error) {
+		items, nextPageToken, err := it.InternalFetch(pageSize, pageToken)
+		if err != nil {
 			return "", err
 		}
-		it.items = append(it.items, resp.Subscriptions...)
-		return resp.NextPageToken, nil
+		it.items = append(it.items, items...)
+		return nextPageToken, nil
 	}
-	bufLen := func() int { return len(it.items) }
-	takeBuf := func() interface{} {
-		b := it.items
-		it.items = nil
-		return b
-	}
-
-	it.pageInfo, it.nextFunc = iterator.NewPageInfo(fetch, bufLen, takeBuf)
+	it.pageInfo, it.nextFunc = iterator.NewPageInfo(fetch, it.bufLen, it.takeBuf)
 	return it
 }
 
-// DeleteSubscription deletes an existing subscription. All pending messages in the subscription
+// DeleteSubscription deletes an existing subscription. All messages retained in the subscription
 // are immediately dropped. Calls to `Pull` after deletion will return
 // `NOT_FOUND`. After a subscription is deleted, a new one may be created with
 // the same name, but the new one has no association with the old
-// subscription, or its topic unless the same topic is specified.
+// subscription or its topic unless the same topic is specified.
 func (c *SubscriberClient) DeleteSubscription(ctx context.Context, req *pubsubpb.DeleteSubscriptionRequest) error {
 	md, _ := metadata.FromContext(ctx)
 	ctx = metadata.NewContext(ctx, metadata.Join(md, c.metadata))
@@ -350,6 +354,14 @@ type SubscriptionIterator struct {
 	items    []*pubsubpb.Subscription
 	pageInfo *iterator.PageInfo
 	nextFunc func() error
+
+	// InternalFetch is for use by the Google Cloud Libraries only.
+	// It is not part of the stable interface of this package.
+	//
+	// InternalFetch returns results from a single call to the underlying RPC.
+	// The number of results is no greater than pageSize.
+	// If there are no more results, nextPageToken is empty and err is nil.
+	InternalFetch func(pageSize int, pageToken string) (results []*pubsubpb.Subscription, nextPageToken string, err error)
 }
 
 // PageInfo supports pagination. See the google.golang.org/api/iterator package for details.
@@ -360,10 +372,21 @@ func (it *SubscriptionIterator) PageInfo() *iterator.PageInfo {
 // Next returns the next result. Its second return value is iterator.Done if there are no more
 // results. Once Next returns Done, all subsequent calls will return Done.
 func (it *SubscriptionIterator) Next() (*pubsubpb.Subscription, error) {
+	var item *pubsubpb.Subscription
 	if err := it.nextFunc(); err != nil {
-		return nil, err
+		return item, err
 	}
-	item := it.items[0]
+	item = it.items[0]
 	it.items = it.items[1:]
 	return item, nil
+}
+
+func (it *SubscriptionIterator) bufLen() int {
+	return len(it.items)
+}
+
+func (it *SubscriptionIterator) takeBuf() interface{} {
+	b := it.items
+	it.items = nil
+	return b
 }
