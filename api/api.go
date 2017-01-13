@@ -77,7 +77,26 @@ func (a *API) PostBundle(w http.ResponseWriter, r *http.Request) {
 
 	defer file.Close()
 
-	sha, err := a.storage.SaveBundle(file, bundleName)
+	principal, err := oauth2.GetPrincipalFromRequest(r)
+
+	if err != nil {
+		httputil.WriteErrorResponse(http.StatusInternalServerError, "Unable to validate user", w)
+		return
+	}
+
+	subject, err := principal.GetSubject()
+
+	if err != nil {
+		httputil.WriteErrorResponse(http.StatusInternalServerError, "Unable to validate user", w)
+		return
+	}
+
+	bundleMeta := &storage.BundleMeta{
+		BundleID:    bundleName,
+		OwnerUserID: subject,
+	}
+
+	sha, err := a.storage.SaveBundle(file, bundleMeta)
 
 	if err != nil {
 		httputil.WriteErrorResponse(http.StatusInternalServerError, fmt.Sprintf("Unable to upload bundle %s", err), w)
@@ -112,6 +131,25 @@ func (a *API) GetRevisions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	principal, err := oauth2.GetPrincipalFromRequest(r)
+
+	if err != nil {
+		httputil.WriteErrorResponse(http.StatusInternalServerError, "Unable to validate user", w)
+		return
+	}
+
+	subject, err := principal.GetSubject()
+
+	if err != nil {
+		httputil.WriteErrorResponse(http.StatusInternalServerError, "Unable to validate user", w)
+		return
+	}
+
+	bundleMeta := &storage.BundleMeta{
+		BundleID:    params.bundleName,
+		OwnerUserID: subject,
+	}
+
 	cursor, pageSize, err := parsePaginationValues(r)
 
 	if err != nil {
@@ -119,7 +157,7 @@ func (a *API) GetRevisions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	revisions, cursor, err := a.storage.GetRevisions(params.bundleName, cursor, pageSize)
+	revisions, cursor, err := a.storage.GetRevisions(bundleMeta, cursor, pageSize)
 
 	if err != nil {
 		httputil.WriteErrorResponse(http.StatusInternalServerError, err.Error(), w)
@@ -136,8 +174,8 @@ func (a *API) GetRevisions(w http.ResponseWriter, r *http.Request) {
 			Created: savedRevision.Created,
 		}
 
-		newRev.Revision = savedRevision.Revision
-		newRev.Self = createRevisionURL(r, params.bundleName, savedRevision.Revision)
+		newRev.Revision = savedRevision.RevisionSha512
+		newRev.Self = createRevisionURL(r, params.bundleName, savedRevision.RevisionSha512)
 
 		bundleRevisions.Revisions = append(bundleRevisions.Revisions, newRev)
 	}
@@ -159,7 +197,26 @@ func (a *API) GetBundleRevision(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	dataReader, err := a.storage.GetBundle(params.bundleName, params.revision)
+	principal, err := oauth2.GetPrincipalFromRequest(r)
+
+	if err != nil {
+		httputil.WriteErrorResponse(http.StatusInternalServerError, "Unable to validate user", w)
+		return
+	}
+
+	subject, err := principal.GetSubject()
+
+	if err != nil {
+		httputil.WriteErrorResponse(http.StatusInternalServerError, "Unable to validate user", w)
+		return
+	}
+
+	bundleMeta := &storage.BundleMeta{
+		BundleID:    params.bundleName,
+		OwnerUserID: subject,
+	}
+
+	dataReader, err := a.storage.GetBundle(bundleMeta, params.revision)
 
 	if err == storage.ErrRevisionNotExist {
 		httputil.WriteErrorResponse(http.StatusNotFound, fmt.Sprintf("Could not find bundle with name '%s' and revision '%s'", params.bundleName, params.revision), w)
@@ -197,9 +254,28 @@ func (a *API) CreateTag(w http.ResponseWriter, r *http.Request) {
 
 	defer r.Body.Close()
 
+	principal, err := oauth2.GetPrincipalFromRequest(r)
+
+	if err != nil {
+		httputil.WriteErrorResponse(http.StatusInternalServerError, "Unable to validate user", w)
+		return
+	}
+
+	subject, err := principal.GetSubject()
+
+	if err != nil {
+		httputil.WriteErrorResponse(http.StatusInternalServerError, "Unable to validate user", w)
+		return
+	}
+
+	bundleMeta := &storage.BundleMeta{
+		BundleID:    bundleRequest.bundleName,
+		OwnerUserID: subject,
+	}
+
 	tagCreate := &TagCreate{}
 
-	err := json.NewDecoder(r.Body).Decode(tagCreate)
+	err = json.NewDecoder(r.Body).Decode(tagCreate)
 
 	//can't parse the json
 	if err != nil {
@@ -216,7 +292,7 @@ func (a *API) CreateTag(w http.ResponseWriter, r *http.Request) {
 	}
 
 	//create the tags
-	err = a.storage.CreateTag(bundleRequest.bundleName, tagCreate.Revision, tagCreate.Tag)
+	err = a.storage.CreateTag(bundleMeta, tagCreate.Revision, tagCreate.Tag)
 
 	if err != nil {
 		if err == storage.ErrRevisionNotExist {
@@ -264,7 +340,26 @@ func (a *API) GetTags(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tags, cursor, err := a.storage.GetTags(params.bundleName, cursor, pageSize)
+	principal, err := oauth2.GetPrincipalFromRequest(r)
+
+	if err != nil {
+		httputil.WriteErrorResponse(http.StatusInternalServerError, "Unable to validate user", w)
+		return
+	}
+
+	subject, err := principal.GetSubject()
+
+	if err != nil {
+		httputil.WriteErrorResponse(http.StatusInternalServerError, "Unable to validate user", w)
+		return
+	}
+
+	bundleMeta := &storage.BundleMeta{
+		BundleID:    params.bundleName,
+		OwnerUserID: subject,
+	}
+
+	tags, cursor, err := a.storage.GetTags(bundleMeta, cursor, pageSize)
 
 	if err != nil {
 		httputil.WriteErrorResponse(http.StatusInternalServerError, err.Error(), w)
@@ -280,7 +375,7 @@ func (a *API) GetTags(w http.ResponseWriter, r *http.Request) {
 			Self: createTagURL(r, params.bundleName, savedTag.Name),
 		}
 
-		tagInfo.Revision = savedTag.Revision
+		tagInfo.Revision = savedTag.RevisionSha512
 		tagInfo.Tag = savedTag.Name
 
 		tagsResponse.Tags = append(tagsResponse.Tags, tagInfo)
@@ -302,7 +397,26 @@ func (a *API) GetTag(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rev, err := a.storage.GetRevisionForTag(tagRequest.bundleName, tagRequest.tag)
+	principal, err := oauth2.GetPrincipalFromRequest(r)
+
+	if err != nil {
+		httputil.WriteErrorResponse(http.StatusInternalServerError, "Unable to validate user", w)
+		return
+	}
+
+	subject, err := principal.GetSubject()
+
+	if err != nil {
+		httputil.WriteErrorResponse(http.StatusInternalServerError, "Unable to validate user", w)
+		return
+	}
+
+	bundleMeta := &storage.BundleMeta{
+		BundleID:    tagRequest.bundleName,
+		OwnerUserID: subject,
+	}
+
+	rev, err := a.storage.GetRevisionForTag(bundleMeta, tagRequest.tag)
 
 	if err != nil {
 		if err == storage.ErrTagNotExist {
@@ -345,8 +459,27 @@ func (a *API) DeleteTag(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	principal, err := oauth2.GetPrincipalFromRequest(r)
+
+	if err != nil {
+		httputil.WriteErrorResponse(http.StatusInternalServerError, "Unable to validate user", w)
+		return
+	}
+
+	subject, err := principal.GetSubject()
+
+	if err != nil {
+		httputil.WriteErrorResponse(http.StatusInternalServerError, "Unable to validate user", w)
+		return
+	}
+
+	bundleMeta := &storage.BundleMeta{
+		BundleID:    tagRequest.bundleName,
+		OwnerUserID: subject,
+	}
+
 	//now delete it
-	rev, err := a.storage.GetRevisionForTag(tagRequest.bundleName, tagRequest.tag)
+	rev, err := a.storage.GetRevisionForTag(bundleMeta, tagRequest.tag)
 
 	if err != nil {
 		if err == storage.ErrTagNotExist {
@@ -359,7 +492,7 @@ func (a *API) DeleteTag(w http.ResponseWriter, r *http.Request) {
 	}
 
 	//now delete it
-	err = a.storage.DeleteTag(tagRequest.bundleName, tagRequest.tag)
+	err = a.storage.DeleteTag(bundleMeta, tagRequest.tag)
 
 	if err != nil {
 		if err == storage.ErrTagNotExist {

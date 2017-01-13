@@ -2,6 +2,7 @@ package oauth2
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"time"
 
@@ -37,7 +38,7 @@ func (a *apigeeOAuth) VerifyOAuth(next http.Handler) http.Handler {
 		}
 
 		//set our JWT into the request, it's valid
-		newRequest := httputil.SetTokenInRequest(r, jwt)
+		newRequest := SetPrincipalInRequest(r, &apigeePrincipal{jwtToken: jwt})
 
 		next.ServeHTTP(rw, newRequest)
 	})
@@ -90,4 +91,18 @@ type ssoKey struct {
 	Use   string `json:"use"`
 	N     string `json:"n"`
 	E     string `json:"e"`
+}
+
+type apigeePrincipal struct {
+	jwtToken jwt.JWT
+}
+
+func (a *apigeePrincipal) GetSubject() (string, error) {
+	subject, exists := a.jwtToken.Claims().Subject()
+
+	if !exists {
+		return "", errors.New("Cannot get subject from JWT token")
+	}
+
+	return subject, nil
 }
