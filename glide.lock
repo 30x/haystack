@@ -1,8 +1,9 @@
-hash: c62ade31569ddafb5180a98058514a952f931764d6bef6418e70df6a1566dcc6
-updated: 2017-01-12T14:24:43.235907176-07:00
+hash: d17d7ba425eae882957a380247debf2a617d612cc482bbebd75c12f0f1f8b3ff
+updated: 2017-02-03T12:51:38.646945867-08:00
 imports:
 - name: cloud.google.com/go
   version: c116c7972ec94f148459a304d07a67ecbc770d4b
+  repo: https://github.com/GoogleCloudPlatform/google-cloud-go
   subpackages:
   - compute/metadata
   - datastore
@@ -28,7 +29,7 @@ imports:
 - name: github.com/gorilla/handlers
   version: 3a5767ca75ece5f7f1440b1d16975247f8d8b221
 - name: github.com/gorilla/mux
-  version: 757bef944d0f21880861c2dd9c871ca543023cba
+  version: 392c28fe23e1c45ddba891b0320b3b5df220beea
 - name: github.com/hashicorp/hcl
   version: eb6f65b2d77ed5078887f960ff570fbddbbeb49d
   subpackages:
@@ -65,7 +66,7 @@ imports:
 - name: github.com/satori/go.uuid
   version: b061729afc07e77a8aa4fad0a2fd840958f1942a
 - name: github.com/SermoDigital/jose
-  version: 2bd9b81ac51d6d6134fcd4fd846bd2e7347a15f9
+  version: f6df55f235c24f236d11dbcf665249a59ac2021f
   subpackages:
   - crypto
   - jws
@@ -83,7 +84,7 @@ imports:
 - name: github.com/spf13/viper
   version: 5ed0fc31f7f453625df314d8e66b9791e8d13003
 - name: github.com/tylerb/graceful
-  version: d37e108c89765a8e307f15b8fb2ecd10575da6bb
+  version: 50a48b6e73fcc75b45e22c05b79629a67c79e938
 - name: golang.org/x/net
   version: 60c41d1de8da134c05b7b40154a9a82bf5b7edb9
   subpackages:
