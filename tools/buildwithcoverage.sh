@@ -1,18 +1,13 @@
 #!/bin/sh
-
-
-export GOOGLE_APPLICATION_CREDENTIALS="/go/src/github.com/30x/haystack/build/application_default_credentials.json"
-
-source /go/src/github.com/30x/haystack/build/env.sh
+source $GOPATH/src/github.com/30x/haystack/build/env.sh
 
 #Run our tests
-
 echo "PROJECTID = $PROJECTID"
 echo "GOOGLE_APPLICATION_CREDENTIALS = $GOOGLE_APPLICATION_CREDENTIALS"
 
 coverMode="atomic"
 
-cd /go/src/github.com/30x/haystack/
+cd $GOPATH/src/github.com/30x/haystack/
 
 dirs="./api ./storage"
 

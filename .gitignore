@@ -27,3 +27,5 @@ build
 *.iml
 vendor
 
+/coverage.txt
+/profile.out
