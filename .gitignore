@@ -25,3 +25,7 @@ _testmain.go
 launch.json
 build
 *.iml
+vendor
+
+/coverage.txt
+/profile.out
